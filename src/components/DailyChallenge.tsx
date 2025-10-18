@@ -38,14 +38,14 @@ export default function DailyChallengeCard({ challenge }: DailyChallengeProps) {
         </div>
 
         {challenge.completed ? (
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-morandi-green-500 text-white">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-morandi-green-500 text-white shadow-md">
             <CheckCircle className="w-4 h-4" />
             已完成
           </div>
         ) : (
           <Link
             href="/write"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-gradient-to-r from-morandi-purple-500 to-morandi-purple-600 hover:from-morandi-purple-600 hover:to-morandi-purple-700 text-white shadow-md hover:shadow-lg transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white shadow-md hover:shadow-lg transition-all"
           >
             <Edit3 className="w-4 h-4" />
             去完成
