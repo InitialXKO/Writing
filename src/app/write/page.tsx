@@ -67,27 +67,82 @@ function WriteContent() {
     setFeedback('正在生成反馈...');
 
     try {
-      // 模拟AI批改（实际项目中会调用API）
       const tool = writingTools.find(t => t.id === selectedTool);
 
-      // 这里应该调用真实的AI API
-      // 暂时使用模拟延迟来演示
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 构建AI批改提示词
+      const prompt = `你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。请根据以下内容对学生的作文进行批改：
 
-      setFeedback(`作为作文导师，我看到了你运用了【${tool?.name}】的技巧：
+写作工具：${tool?.name} - ${tool?.title}
+工具口诀：${tool?.mantra}
+工具说明：${tool?.description}
+适用场景：${tool?.suitableFor}
+注意事项：${tool?.caution}
+
+手册核心要求：
+1. 选材要真实具体，避免宏大叙事和老套情节
+2. 描写要具体化，用动作、细节代替抽象形容词
+3. 关键时刻要用慢镜头放大描写
+4. 运用五感描写增强画面感
+5. 通过对比突出特点
+6. 挖掘事件深层意义，避免说教
+7. 注意句式节奏变化
+
+学生作文：
+${content}
+
+请按照以下格式提供反馈：
+作为作文导师，我看到了你运用了【${tool?.name}】的技巧：
 
 ✅ 优点：
-1. 你很好地使用了具体的动作描写
-2. 在关键场景使用了慢镜头技巧
-3. 结尾有深度，不落俗套
+1. [具体指出学生作文中运用了哪些手册中的技巧，引用原文例子]
+2. [指出作文中的亮点，引用原文例子]
+3. [肯定学生的创意或独特表达，引用原文例子]
 
 ❌ 改进建议：
-1. 可以增加更多五感描写来增强画面感
-2. 部分句子可以调整节奏，增加音乐感
+1. [针对所选工具的具体建议，结合手册要求]
+2. [指出可以加强的地方，给出具体修改建议]
+3. [其他方面的建议，如结构、语言等]
 
-继续加油！`);
+💡 写作小贴士：
+[结合手册内容给出一个具体的写作建议或技巧提醒]
+
+继续加油！`;
+
+      // 调用真实的AI API
+      const response = await fetch(`${aiConfig.baseURL || 'https://api.openai.com/v1'}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${aiConfig.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: aiConfig.model || 'gpt-4',
+          messages: [
+            {
+              role: 'system',
+              content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const aiFeedback = data.choices[0]?.message?.content || 'AI批改结果为空';
+
+      setFeedback(aiFeedback);
     } catch (error) {
-      setFeedback('批改失败，请检查API配置或稍后重试');
+      console.error('AI批改失败:', error);
+      setFeedback(`批改失败：${error instanceof Error ? error.message : '未知错误'}\n\n请检查API配置或稍后重试`);
     } finally {
       setIsGenerating(false);
     }
