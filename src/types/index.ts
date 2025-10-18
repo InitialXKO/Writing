@@ -40,6 +40,14 @@ export interface AIConfig {
   models?: string[]; // 可用模型列表
 }
 
+// 作文版本
+export interface EssayVersion {
+  id: string;
+  content: string;
+  feedback?: string;
+  createdAt: Date;
+}
+
 // 作文数据
 export interface Essay {
   id: string;
@@ -48,4 +56,5 @@ export interface Essay {
   toolUsed: string;
   createdAt: Date;
   feedback?: string;
+  versions?: EssayVersion[]; // 历史版本
 }

@@ -9,7 +9,7 @@ import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 
 function WriteContent() {
-  const { addEssay, aiConfig } = useAppStore();
+  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig } = useAppStore();
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -18,11 +18,39 @@ function WriteContent() {
   const [feedback, setFeedback] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [editingEssayId, setEditingEssayId] = useState<string | null>(null);
+  const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
 
   // 从URL参数中获取预选的工具和题材
   useEffect(() => {
     const toolParam = searchParams.get('tool');
     const topicParam = searchParams.get('topic');
+    const essayId = searchParams.get('essayId');
+    const versionId = searchParams.get('versionId');
+
+    // 设置编辑状态
+    if (essayId) {
+      setEditingEssayId(essayId);
+      const essay = essays.find(e => e.id === essayId);
+      if (essay) {
+        setTitle(essay.title);
+        setContent(essay.content);
+        setSelectedTool(essay.toolUsed);
+      }
+    }
+
+    if (versionId) {
+      setEditingVersionId(versionId);
+      if (essayId) {
+        const essay = essays.find(e => e.id === essayId);
+        if (essay && essay.versions) {
+          const version = essay.versions.find(v => v.id === versionId);
+          if (version) {
+            setContent(version.content);
+          }
+        }
+      }
+    }
 
     if (toolParam && writingTools.some(tool => tool.id === toolParam)) {
       setSelectedTool(toolParam);
@@ -35,7 +63,7 @@ function WriteContent() {
         setContent(`请围绕以下主题进行写作：${decodeURIComponent(topicParam)}\n\n`);
       }
     }
-  }, [searchParams, content]);
+  }, [searchParams, content, essays]);
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) {
@@ -43,14 +71,30 @@ function WriteContent() {
       return;
     }
 
-    // 保存到本地存储
-    addEssay({
-      title,
-      content,
-      toolUsed: selectedTool,
-    });
-
-    alert('作文已保存到我的作文中');
+    if (editingEssayId) {
+      // 如果是编辑已存在的作文，添加新版本
+      if (editingVersionId) {
+        // 如果是编辑特定版本，保存为新版本
+        addEssayVersion(editingEssayId, content, feedback);
+        alert('新版本已保存到作文中');
+      } else {
+        // 如果是编辑当前版本，更新作文
+        updateEssay(editingEssayId, {
+          title,
+          content,
+          toolUsed: selectedTool,
+        });
+        alert('作文已更新');
+      }
+    } else {
+      // 保存新作文
+      addEssay({
+        title,
+        content,
+        toolUsed: selectedTool,
+      });
+      alert('作文已保存到我的作文中');
+    }
   };
 
   const handleAIReview = async () => {
@@ -71,28 +115,52 @@ function WriteContent() {
     try {
       const tool = writingTools.find(t => t.id === selectedTool);
 
+      // 获取原文内容用于对比
+      let originalContent = '';
+      if (editingEssayId) {
+        const essay = essays.find(e => e.id === editingEssayId);
+        if (essay) {
+          if (editingVersionId && essay.versions) {
+            // 如果是编辑特定版本，获取该版本的原文
+            const version = essay.versions.find(v => v.id === editingVersionId);
+            originalContent = version?.content || essay.content;
+          } else {
+            // 如果是编辑当前版本，获取当前内容作为原文
+            originalContent = essay.content;
+          }
+        }
+      }
+
       // 构建AI批改提示词
-      const prompt = `你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。请根据以下内容对学生的作文进行批改：
+      let prompt = `你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。请根据以下内容对学生的作文进行批改：\n\n`;
 
-写作工具：${tool?.name} - ${tool?.title}
-工具口诀：${tool?.mantra}
-工具说明：${tool?.description}
-适用场景：${tool?.suitableFor}
-注意事项：${tool?.caution}
+      // 添加写作工具信息
+      prompt += `写作工具：${tool?.name} - ${tool?.title}\n`;
+      prompt += `工具口诀：${tool?.mantra}\n`;
+      prompt += `工具说明：${tool?.description}\n`;
+      prompt += `适用场景：${tool?.suitableFor}\n`;
+      prompt += `注意事项：${tool?.caution}\n\n`;
 
-手册核心要求：
-1. 选材要真实具体，避免宏大叙事和老套情节
-2. 描写要具体化，用动作、细节代替抽象形容词
-3. 关键时刻要用慢镜头放大描写
-4. 运用五感描写增强画面感
-5. 通过对比突出特点
-6. 挖掘事件深层意义，避免说教
-7. 注意句式节奏变化
+      // 添加手册核心要求
+      prompt += `手册核心要求：\n`;
+      prompt += `1. 选材要真实具体，避免宏大叙事和老套情节\n`;
+      prompt += `2. 描写要具体化，用动作、细节代替抽象形容词\n`;
+      prompt += `3. 关键时刻要用慢镜头放大描写\n`;
+      prompt += `4. 运用五感描写增强画面感\n`;
+      prompt += `5. 通过对比突出特点\n`;
+      prompt += `6. 挖掘事件深层意义，避免说教\n`;
+      prompt += `7. 注意句式节奏变化\n\n`;
 
-学生作文：
-${content}
+      // 添加原文和修改后的内容
+      if (originalContent && originalContent !== content) {
+        prompt += `原文：\n${originalContent}\n\n`;
+        prompt += `修改后的文章：\n${content}\n\n`;
+        prompt += `请对比原文和修改后的文章，指出修改的优点和可以进一步改进的地方。\n\n`;
+      } else {
+        prompt += `学生作文：\n${content}\n\n`;
+      }
 
-请按照以下格式提供反馈：
+      prompt += `请按照以下格式提供反馈：
 作为作文导师，我看到了你运用了【${tool?.name}】的技巧：
 
 ✅ 优点：
@@ -103,9 +171,15 @@ ${content}
 ❌ 改进建议：
 1. [针对所选工具的具体建议，结合手册要求]
 2. [指出可以加强的地方，给出具体修改建议]
-3. [其他方面的建议，如结构、语言等]
+3. [其他方面的建议，如结构、语言等]`;
 
-💡 写作小贴士：
+      if (originalContent && originalContent !== content) {
+        prompt += `\n\n🔄 修改对比：
+1. [指出修改后改进的地方]
+2. [建议可以进一步优化的地方]`;
+      }
+
+      prompt += `\n\n💡 写作小贴士：
 [结合手册内容给出一个具体的写作建议或技巧提醒]
 
 继续加油！`;
@@ -147,7 +221,7 @@ ${content}
             }
           ],
           temperature: 0.7,
-          max_tokens: 1000,
+          max_tokens: 1500,
         }),
       });
 

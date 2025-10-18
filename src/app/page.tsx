@@ -1,5 +1,5 @@
 import { writingTools } from '@/data/tools';
-import { Trophy, BookOpen, Settings, Play, Sparkles } from 'lucide-react';
+import { Trophy, BookOpen, Settings, Play, Sparkles, Library } from 'lucide-react';
 import Link from 'next/link';
 
 // 为静态导出生成首页
@@ -112,6 +112,16 @@ export default function HomePage() {
             <BookOpen className="w-5 h-5 text-morandi-blue-600" />
           </div>
           <span className="font-medium">写作练习</span>
+        </Link>
+
+        <Link
+          href="/essays"
+          className="flex items-center gap-2 text-morandi-gray-600 hover:text-morandi-blue-600 transition-colors p-3 rounded-xl hover:bg-morandi-blue-50"
+        >
+          <div className="p-2 bg-morandi-purple-100 rounded-lg">
+            <Library className="w-5 h-5 text-morandi-purple-600" />
+          </div>
+          <span className="font-medium">我的作文</span>
         </Link>
 
         <Link

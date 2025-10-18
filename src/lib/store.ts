@@ -19,6 +19,7 @@ interface AppState {
   essays: Essay[];
   addEssay: (essay: Omit<Essay, 'id' | 'createdAt'>) => void;
   updateEssay: (id: string, updates: Partial<Essay>) => void;
+  addEssayVersion: (essayId: string, content: string, feedback?: string) => void; // 添加作文版本
 
   // 重置进度
   resetProgress: () => void;
@@ -106,7 +107,8 @@ export const useAppStore = create<AppState>()(
         const essay: Essay = {
           ...essayData,
           id: Date.now().toString(),
-          createdAt: new Date()
+          createdAt: new Date(),
+          versions: [] // 初始化版本数组
         };
         set(state => ({ essays: [...state.essays, essay] }));
       },
@@ -116,6 +118,27 @@ export const useAppStore = create<AppState>()(
           essays: state.essays.map(essay =>
             essay.id === id ? { ...essay, ...updates } : essay
           )
+        }));
+      },
+
+      // 添加新版本到作文
+      addEssayVersion: (essayId, content, feedback) => {
+        set(state => ({
+          essays: state.essays.map(essay => {
+            if (essay.id === essayId) {
+              const newVersion: EssayVersion = {
+                id: Date.now().toString(),
+                content,
+                feedback,
+                createdAt: new Date()
+              };
+              return {
+                ...essay,
+                versions: [...(essay.versions || []), newVersion]
+              };
+            }
+            return essay;
+          })
         }));
       },
 
