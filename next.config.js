@@ -5,9 +5,6 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  experimental: {
-    appDir: true
-  },
   // 解决Vercel部署时的JavaScript语法错误
   webpack: (config) => {
     config.module.rules.push({
