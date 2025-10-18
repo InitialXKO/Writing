@@ -156,7 +156,9 @@ function WriteContent() {
     setFeedback('正在生成反馈...');
 
     try {
-      const tool = writingTools.find(t => t.id === selectedTool);
+      // 检查是否为自由写作
+      const isFreeWriting = selectedTool === 'free-writing';
+      const tool = isFreeWriting ? null : writingTools.find(t => t.id === selectedTool);
 
       // 获取原文内容用于对比
       let originalContent = '';
@@ -177,12 +179,16 @@ function WriteContent() {
       // 构建AI批改提示词
       let prompt = `你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。请根据以下内容对学生的作文进行批改：\n\n`;
 
-      // 添加写作工具信息
-      prompt += `写作工具：${tool?.name} - ${tool?.title}\n`;
-      prompt += `工具口诀：${tool?.mantra}\n`;
-      prompt += `工具说明：${tool?.description}\n`;
-      prompt += `适用场景：${tool?.suitableFor}\n`;
-      prompt += `注意事项：${tool?.caution}\n\n`;
+      // 添加写作工具信息（如果是自由写作则特殊处理）
+      if (isFreeWriting) {
+        prompt += `写作模式：自由写作 - 学生选择不使用特定写作工具\n\n`;
+      } else {
+        prompt += `写作工具：${tool?.name} - ${tool?.title}\n`;
+        prompt += `工具口诀：${tool?.mantra}\n`;
+        prompt += `工具说明：${tool?.description}\n`;
+        prompt += `适用场景：${tool?.suitableFor}\n`;
+        prompt += `注意事项：${tool?.caution}\n\n`;
+      }
 
       // 添加手册核心要求
       prompt += `手册核心要求：\n`;
@@ -203,7 +209,22 @@ function WriteContent() {
         prompt += `学生作文：\n${content}\n\n`;
       }
 
-      prompt += `请按照以下格式提供反馈：
+      // 根据是否为自由写作调整反馈格式
+      if (isFreeWriting) {
+        prompt += `请按照以下格式提供反馈：
+作为作文导师，我看到了你的自由写作：
+
+✅ 优点：
+1. [具体指出学生作文中的亮点，引用原文例子]
+2. [指出作文中运用了哪些手册中的技巧，引用原文例子]
+3. [肯定学生的创意或独特表达，引用原文例子]
+
+❌ 改进建议：
+1. [指出可以加强的地方，给出具体修改建议]
+2. [建议可以尝试运用哪些写作工具来提升表达效果]
+3. [其他方面的建议，如结构、语言等]`;
+      } else {
+        prompt += `请按照以下格式提供反馈：
 作为作文导师，我看到了你运用了【${tool?.name}】的技巧：
 
 ✅ 优点：
@@ -215,6 +236,7 @@ function WriteContent() {
 1. [针对所选工具的具体建议，结合手册要求]
 2. [指出可以加强的地方，给出具体修改建议]
 3. [其他方面的建议，如结构、语言等]`;
+      }
 
       if (originalContent && originalContent !== content) {
         prompt += `\n\n🔄 修改对比：
@@ -399,6 +421,7 @@ function WriteContent() {
                 onChange={(e) => setSelectedTool(e.target.value)}
                 className="w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white shadow-sm"
               >
+                <option value="free-writing">自由写作 - 不使用特定工具</option>
                 {writingTools.map((tool) => (
                   <option key={tool.id} value={tool.id}>
                     {tool.name} - {tool.title}
