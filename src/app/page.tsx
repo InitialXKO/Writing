@@ -93,7 +93,6 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto mb-8">
           <DailyChallengeCard
             challenge={currentChallenge}
-            onComplete={handleChallengeComplete}
           />
         </div>
       )}

@@ -1,32 +1,15 @@
 'use client';
 
-import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { DailyChallenge } from '@/types';
-import { Sparkles, CheckCircle, Calendar, Trophy } from 'lucide-react';
+import { Sparkles, CheckCircle, Calendar, Trophy, Edit3 } from 'lucide-react';
+import Link from 'next/link';
 
 interface DailyChallengeProps {
   challenge: DailyChallenge;
-  onComplete: () => void;
 }
 
-export default function DailyChallengeCard({ challenge, onComplete }: DailyChallengeProps) {
-  const [isCompleted, setIsCompleted] = useState(challenge.completed);
-  const { updateHabitTracker } = useAppStore();
-
-  const handleComplete = () => {
-    if (!isCompleted) {
-      setIsCompleted(true);
-      onComplete();
-
-      // 更新习惯追踪器
-      updateHabitTracker({
-        writingStreak: challenge.streak + 1,
-        weeklyGoal: Math.min((challenge.streak + 1) / 7, 1) // 简化的周目标进度
-      });
-    }
-  };
-
+export default function DailyChallengeCard({ challenge }: DailyChallengeProps) {
   return (
     <div className="bg-gradient-to-br from-morandi-purple-50 to-morandi-purple-100 border border-morandi-purple-200 rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
@@ -54,24 +37,20 @@ export default function DailyChallengeCard({ challenge, onComplete }: DailyChall
           <span className="text-sm font-medium">连续 {challenge.streak} 天</span>
         </div>
 
-        <button
-          onClick={handleComplete}
-          disabled={isCompleted}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
-            isCompleted
-              ? 'bg-morandi-green-500 text-white'
-              : 'bg-gradient-to-r from-morandi-purple-500 to-morandi-purple-600 hover:from-morandi-purple-600 hover:to-morandi-purple-700 text-white shadow-md hover:shadow-lg'
-          }`}
-        >
-          {isCompleted ? (
-            <>
-              <CheckCircle className="w-4 h-4" />
-              已完成
-            </>
-          ) : (
-            '完成挑战'
-          )}
-        </button>
+        {challenge.completed ? (
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-morandi-green-500 text-white">
+            <CheckCircle className="w-4 h-4" />
+            已完成
+          </div>
+        ) : (
+          <Link
+            href="/write"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-gradient-to-r from-morandi-purple-500 to-morandi-purple-600 hover:from-morandi-purple-600 hover:to-morandi-purple-700 text-white shadow-md hover:shadow-lg transition-all"
+          >
+            <Edit3 className="w-4 h-4" />
+            去完成
+          </Link>
+        )}
       </div>
     </div>
   );

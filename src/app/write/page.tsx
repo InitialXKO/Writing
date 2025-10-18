@@ -10,7 +10,7 @@ import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
 
 function WriteContent() {
-  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, updateActionItem } = useAppStore();
+  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, updateActionItem, progress, setDailyChallenge } = useAppStore();
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -84,6 +84,18 @@ function WriteContent() {
       }
     }
 
+    // 检查是否完成了今日的每日挑战
+    const today = new Date().toDateString();
+    const dailyChallenge = progress.dailyChallenge;
+    let challengeCompleted = false;
+
+    if (dailyChallenge && !dailyChallenge.completed) {
+      const challengeDate = new Date(dailyChallenge.date).toDateString();
+      if (today === challengeDate) {
+        challengeCompleted = true;
+      }
+    }
+
     if (editingEssayId) {
       // 如果是编辑已存在的作文，添加新版本
       if (editingVersionId) {
@@ -111,6 +123,20 @@ function WriteContent() {
         actionItems: actionItems,
       });
       alert('作文已保存到我的作文中');
+    }
+
+    // 如果完成了今日挑战，更新挑战状态
+    if (challengeCompleted && dailyChallenge) {
+      const updatedChallenge = {
+        ...dailyChallenge,
+        completed: true,
+        streak: dailyChallenge.streak + 1
+      };
+
+      setDailyChallenge(updatedChallenge);
+
+      // 显示完成提示
+      alert(`恭喜完成今日挑战！连续写作天数：${updatedChallenge.streak + 1}天`);
     }
   };
 
