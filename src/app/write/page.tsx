@@ -63,7 +63,7 @@ function WriteContent() {
         setContent(`请围绕以下主题进行写作：${decodeURIComponent(topicParam)}\n\n`);
       }
     }
-  }, [searchParams, content, essays]);
+  }, [searchParams, essays]);
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) {
