@@ -9,8 +9,15 @@
   ],
   "routes": [
     {
+      "src": "/_next/static/(?:[^/]+/)*[^/]+\\.(?:js|css|woff2)",
+      "headers": {
+        "cache-control": "public,max-age=31536000,immutable"
+      },
+      "dest": "/_next/static/$1"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/"
+      "dest": "/$1"
     }
   ]
 }

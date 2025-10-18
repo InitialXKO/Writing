@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Development
+.nyc_output/
+coverage/
+
+# Logs
+logs
+*.log
+
+# Environment variables
+.env*
+!.env.example
+
+# Build outputs
+dist/
+build/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+
+# TypeScript
+*.tsbuildinfo
+
+# Vercel
+.vercel/
+
+# Local development files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

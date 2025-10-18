@@ -28,28 +28,28 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-white">
+    <div className="min-h-screen bg-gradient-to-br from-morandi-gray-100 to-white">
       {/* 头部 */}
-      <div className="bg-white shadow-card border-b border-neutral-200">
+      <div className="bg-white shadow-card border-b border-morandi-gray-200">
         <div className="max-w-4xl mx-auto p-6">
           <div className="flex items-center gap-4">
             <Link
               href="/"
-              className="flex items-center gap-2 text-neutral-600 hover:text-primary-600 transition-colors p-2 rounded-lg hover:bg-primary-50"
+              className="flex items-center gap-2 text-morandi-gray-600 hover:text-morandi-blue-600 transition-colors p-2 rounded-lg hover:bg-morandi-blue-50"
             >
-              <div className="p-2 bg-neutral-100 rounded-lg">
+              <div className="p-2 bg-morandi-gray-100 rounded-lg">
                 <ArrowLeft className="w-5 h-5" />
               </div>
               返回首页
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-neutral-800 flex items-center gap-2">
-                <div className="p-2 bg-primary-100 rounded-lg">
-                  <Key className="w-5 h-5 text-primary-600" />
+              <h1 className="text-2xl font-bold text-morandi-gray-800 flex items-center gap-2">
+                <div className="p-2 bg-morandi-blue-100 rounded-lg">
+                  <Key className="w-5 h-5 text-morandi-blue-600" />
                 </div>
                 设置
               </h1>
-              <p className="text-neutral-600 text-sm">配置AI助手和管理学习进度</p>
+              <p className="text-morandi-gray-600 text-sm">配置AI助手和管理学习进度</p>
             </div>
           </div>
         </div>
@@ -57,19 +57,19 @@ export default function SettingsPage() {
 
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         {/* AI配置 */}
-        <section className="bg-white rounded-2xl shadow-card p-6 border border-neutral-200">
-          <h2 className="text-xl font-bold text-neutral-800 mb-6 flex items-center gap-2">
-            <div className="p-2 bg-secondary-100 rounded-lg">
-              <Key className="w-5 h-5 text-secondary-600" />
+        <section className="bg-white rounded-2xl shadow-card p-6 border border-morandi-gray-200">
+          <h2 className="text-xl font-bold text-morandi-gray-800 mb-6 flex items-center gap-2">
+            <div className="p-2 bg-morandi-green-100 rounded-lg">
+              <Key className="w-5 h-5 text-morandi-green-600" />
             </div>
             AI配置
           </h2>
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2 flex items-center gap-2">
-                <div className="p-1 bg-warning-100 rounded-md">
-                  <Shield className="w-4 h-4 text-warning-600" />
+              <label className="block text-sm font-medium text-morandi-gray-700 mb-2 flex items-center gap-2">
+                <div className="p-1 bg-morandi-pink-100 rounded-md">
+                  <Shield className="w-4 h-4 text-morandi-pink-600" />
                 </div>
                 API密钥
               </label>
@@ -78,17 +78,17 @@ export default function SettingsPage() {
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="sk-...your-api-key"
-                className="w-full px-4 py-3 border border-neutral-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm"
+                className="w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 shadow-sm"
               />
-              <p className="mt-2 text-sm text-neutral-500">
+              <p className="mt-2 text-sm text-morandi-gray-500">
                 输入您的OpenAI或其他兼容API的密钥
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2 flex items-center gap-2">
-                <div className="p-1 bg-primary-100 rounded-md">
-                  <Globe className="w-4 h-4 text-primary-600" />
+              <label className="block text-sm font-medium text-morandi-gray-700 mb-2 flex items-center gap-2">
+                <div className="p-1 bg-morandi-blue-100 rounded-md">
+                  <Globe className="w-4 h-4 text-morandi-blue-600" />
                 </div>
                 API端点 (可选)
               </label>
@@ -97,21 +97,21 @@ export default function SettingsPage() {
                 value={baseURL}
                 onChange={(e) => setBaseURL(e.target.value)}
                 placeholder="https://api.openai.com/v1"
-                className="w-full px-4 py-3 border border-neutral-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm"
+                className="w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 shadow-sm"
               />
-              <p className="mt-2 text-sm text-neutral-500">
+              <p className="mt-2 text-sm text-morandi-gray-500">
                 如果使用自定义API端点，请在此填写
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">
+              <label className="block text-sm font-medium text-morandi-gray-700 mb-2">
                 模型
               </label>
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="w-full px-4 py-3 border border-neutral-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white shadow-sm"
+                className="w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white shadow-sm"
               >
                 <option value="gpt-4">GPT-4</option>
                 <option value="gpt-4o">GPT-4o</option>
@@ -121,7 +121,7 @@ export default function SettingsPage() {
                 <option value="deepseek-chat">DeepSeek Chat</option>
                 <option value="moonshot-v1-8k">Moonshot v1 8k</option>
               </select>
-              <p className="mt-2 text-sm text-neutral-500">
+              <p className="mt-2 text-sm text-morandi-gray-500">
                 选择要使用的AI模型
               </p>
             </div>
@@ -129,7 +129,7 @@ export default function SettingsPage() {
             <div className="flex justify-end pt-4">
               <button
                 onClick={handleSave}
-                className="flex items-center gap-2 bg-gradient-to-r from-success-500 to-success-600 hover:from-success-600 hover:to-success-700 text-white font-medium py-3 px-6 rounded-xl transition-all shadow-md hover:shadow-lg"
+                className="flex items-center gap-2 bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 hover:from-morandi-green-600 hover:to-morandi-green-700 text-white font-medium py-3 px-6 rounded-xl transition-all shadow-md hover:shadow-lg"
               >
                 <Save className="w-4 h-4" />
                 保存配置
@@ -139,27 +139,27 @@ export default function SettingsPage() {
         </section>
 
         {/* 进度管理 */}
-        <section className="bg-white rounded-2xl shadow-card p-6 border border-neutral-200">
-          <h2 className="text-xl font-bold text-neutral-800 mb-6 flex items-center gap-2">
-            <div className="p-2 bg-danger-100 rounded-lg">
-              <RotateCcw className="w-5 h-5 text-danger-600" />
+        <section className="bg-white rounded-2xl shadow-card p-6 border border-morandi-gray-200">
+          <h2 className="text-xl font-bold text-morandi-gray-800 mb-6 flex items-center gap-2">
+            <div className="p-2 bg-morandi-pink-100 rounded-lg">
+              <RotateCcw className="w-5 h-5 text-morandi-pink-600" />
             </div>
             进度管理
           </h2>
 
-          <div className="p-5 bg-gradient-to-br from-danger-50 to-danger-100 border border-danger-200 rounded-xl">
-            <h3 className="font-bold text-danger-800 mb-2 flex items-center gap-2">
-              <div className="p-1 bg-danger-200 rounded-md">
-                <RotateCcw className="w-4 h-4 text-danger-700" />
+          <div className="p-5 bg-gradient-to-br from-morandi-pink-50 to-morandi-pink-100 border border-morandi-pink-200 rounded-xl">
+            <h3 className="font-bold text-morandi-pink-800 mb-2 flex items-center gap-2">
+              <div className="p-1 bg-morandi-pink-200 rounded-md">
+                <RotateCcw className="w-4 h-4 text-morandi-pink-700" />
               </div>
               重置学习进度
             </h3>
-            <p className="text-danger-700 text-sm mb-4">
+            <p className="text-morandi-pink-700 text-sm mb-4">
               此操作将清除所有已完成的关卡和作文记录，恢复到初始状态。
             </p>
             <button
               onClick={handleReset}
-              className="bg-gradient-to-r from-danger-500 to-danger-600 hover:from-danger-600 hover:to-danger-700 text-white font-medium py-2 px-4 rounded-lg transition-all shadow-md hover:shadow-lg"
+              className="bg-gradient-to-r from-morandi-pink-500 to-morandi-pink-600 hover:from-morandi-pink-600 hover:to-morandi-pink-700 text-white font-medium py-2 px-4 rounded-lg transition-all shadow-md hover:shadow-lg"
             >
               重置所有进度
             </button>
@@ -167,23 +167,23 @@ export default function SettingsPage() {
         </section>
 
         {/* 使用说明 */}
-        <section className="bg-gradient-to-br from-primary-50 to-primary-100 border border-primary-200 rounded-2xl p-6">
-          <h2 className="text-xl font-bold text-primary-800 mb-4 flex items-center gap-2">
-            <div className="p-2 bg-primary-500/20 rounded-lg">
-              <Info className="w-5 h-5 text-primary-700" />
+        <section className="bg-gradient-to-br from-morandi-blue-50 to-morandi-blue-100 border border-morandi-blue-200 rounded-2xl p-6">
+          <h2 className="text-xl font-bold text-morandi-blue-800 mb-4 flex items-center gap-2">
+            <div className="p-2 bg-morandi-blue-500/20 rounded-lg">
+              <Info className="w-5 h-5 text-morandi-blue-700" />
             </div>
             使用说明
           </h2>
-          <div className="space-y-4 text-primary-700 bg-white/50 p-4 rounded-xl">
+          <div className="space-y-4 text-morandi-blue-700 bg-white/50 p-4 rounded-xl">
             <div className="flex items-start gap-3">
-              <div className="mt-1 w-2 h-2 bg-primary-500 rounded-full flex-shrink-0"></div>
+              <div className="mt-1 w-2 h-2 bg-morandi-blue-500 rounded-full flex-shrink-0"></div>
               <p>
                 请在{" "}
                 <a
                   href="https://platform.openai.com/api-keys"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary-600 underline hover:text-primary-800 font-medium"
+                  className="text-morandi-blue-600 underline hover:text-morandi-blue-800 font-medium"
                 >
                   OpenAI官网
                 </a>{" "}
@@ -191,15 +191,15 @@ export default function SettingsPage() {
               </p>
             </div>
             <div className="flex items-start gap-3">
-              <div className="mt-1 w-2 h-2 bg-primary-500 rounded-full flex-shrink-0"></div>
+              <div className="mt-1 w-2 h-2 bg-morandi-blue-500 rounded-full flex-shrink-0"></div>
               <p>也可以使用支持OpenAI格式的其他服务商，如DeepSeek、Moonshot等</p>
             </div>
             <div className="flex items-start gap-3">
-              <div className="mt-1 w-2 h-2 bg-primary-500 rounded-full flex-shrink-0"></div>
+              <div className="mt-1 w-2 h-2 bg-morandi-blue-500 rounded-full flex-shrink-0"></div>
               <p>作文批改功能需要在练习页面手动调用，系统不会自动提交内容</p>
             </div>
             <div className="flex items-start gap-3">
-              <div className="mt-1 w-2 h-2 bg-primary-500 rounded-full flex-shrink-0"></div>
+              <div className="mt-1 w-2 h-2 bg-morandi-blue-500 rounded-full flex-shrink-0"></div>
               <p>所有数据仅存储在您的浏览器中，不会上传到任何服务器</p>
             </div>
           </div>
