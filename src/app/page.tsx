@@ -10,16 +10,16 @@ import AchievementCard from '@/components/AchievementCard';
 
 // 为静态导出生成首页
 export default function HomePage() {
-  const { progress, setDailyChallenge, addAchievement } = useAppStore();
+  const { progress, essays, setDailyChallenge, addAchievement } = useAppStore();
   const [currentChallenge, setCurrentChallenge] = useState(progress.dailyChallenge);
 
   // 处理每日挑战完成
   const handleChallengeComplete = () => {
     // 更新挑战状态
     const updatedChallenge = {
-      ...currentChallenge,
+      ...currentChallenge!,
       completed: true,
-      streak: currentChallenge.streak + 1
+      streak: (currentChallenge?.streak || 0) + 1
     };
 
     setCurrentChallenge(updatedChallenge);
@@ -29,7 +29,7 @@ export default function HomePage() {
     const { habitTracker } = progress;
     if (habitTracker) {
       // 检查是否解锁连续写作成就
-      const streak = currentChallenge.streak + 1;
+      const streak = (currentChallenge?.streak || 0) + 1;
       if (streak === 1) {
         addAchievement({
           title: "写作新手",
@@ -54,6 +54,8 @@ export default function HomePage() {
 
   // 检查是否需要生成新的每日挑战
   useEffect(() => {
+    if (!currentChallenge) return;
+
     const today = new Date().toDateString();
     const challengeDate = new Date(currentChallenge.date).toDateString();
 
@@ -63,7 +65,7 @@ export default function HomePage() {
         date: new Date(),
         task: "用'慢镜头'描写一个紧张瞬间，30字以内",
         completed: false,
-        streak: currentChallenge.streak
+        streak: currentChallenge.streak || 0
       };
 
       setCurrentChallenge(newChallenge);
@@ -87,12 +89,14 @@ export default function HomePage() {
       </header>
 
       {/* 每日挑战 */}
-      <div className="max-w-4xl mx-auto mb-8">
-        <DailyChallengeCard
-          challenge={currentChallenge}
-          onComplete={handleChallengeComplete}
-        />
-      </div>
+      {currentChallenge && (
+        <div className="max-w-4xl mx-auto mb-8">
+          <DailyChallengeCard
+            challenge={currentChallenge}
+            onComplete={handleChallengeComplete}
+          />
+        </div>
+      )}
 
       {/* 习惯追踪 */}
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-card p-6 mb-8 border border-morandi-gray-200">
@@ -117,7 +121,7 @@ export default function HomePage() {
           </div>
           <div className="bg-morandi-green-50 rounded-xl p-4 text-center">
             <div className="text-2xl font-bold text-morandi-green-700">
-              {progress.essays?.length || 0}
+              {essays?.length || 0}
             </div>
             <div className="text-sm text-morandi-green-600">作文篇数</div>
           </div>
