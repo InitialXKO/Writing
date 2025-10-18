@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  // 为Vercel部署移除output: 'export'
+  // output: 'export',
   trailingSlash: true,
   images: {
     unoptimized: true
