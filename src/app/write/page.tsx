@@ -7,7 +7,7 @@ import { writingTools } from '@/data/tools';
 import { ArrowLeft, Send, Save, Sparkles, Edit3, Lightbulb, Zap } from 'lucide-react';
 import Link from 'next/link';
 
-export default function WritePage() {
+function WriteContent() {
   const { addEssay, aiConfig } = useAppStore();
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
@@ -308,4 +308,15 @@ export default function WritePage() {
       </div>
     </div>
   );
+}
+
+import { Suspense } from 'react';
+
+export default function WritePage() {
+  return (
+    <Suspense fallback={<div>加载中...</div>}>
+      <WriteContent />
+    </Suspense>
+  );
+}
 }
