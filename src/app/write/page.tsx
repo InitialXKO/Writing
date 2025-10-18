@@ -58,7 +58,8 @@ function WriteContent() {
     }
 
     if (!aiConfig?.apiKey) {
-      alert('请先在设置中配置AI API密钥');
+      // 没有API密钥时直接跳转到设置页面
+      window.location.href = '/settings';
       return;
     }
 
