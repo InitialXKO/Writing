@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 为Vercel部署移除output: 'export'
-  // output: 'export',
-  trailingSlash: true,
+  // 为Vercel部署配置标准Next.js应用
+  reactStrictMode: true,
+  swcMinify: true,
   images: {
     unoptimized: true
   },
