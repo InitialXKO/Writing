@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
 import { ArrowLeft, Send, Save, Sparkles, Edit3, Lightbulb, Zap } from 'lucide-react';
 import Link from 'next/link';
+import FeedbackModal from '@/components/FeedbackModal';
 
 function WriteContent() {
   const { addEssay, aiConfig } = useAppStore();
@@ -16,6 +17,7 @@ function WriteContent() {
   const [topic, setTopic] = useState('');
   const [feedback, setFeedback] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   // 从URL参数中获取预选的工具和题材
   useEffect(() => {
@@ -168,6 +170,7 @@ ${content}
       const aiFeedback = data.choices[0]?.message?.content || 'AI批改结果为空';
 
       setFeedback(aiFeedback);
+      setIsFeedbackModalOpen(true);
     } catch (error) {
       console.error('AI批改失败:', error);
       setFeedback(`批改失败：${error instanceof Error ? error.message : '未知错误'}\n\n请检查API配置或稍后重试`);
@@ -373,24 +376,19 @@ ${content}
                 )}
               </button>
 
-              {feedback && (
-                <div className="mt-4 p-4 bg-morandi-gray-50 border border-morandi-gray-200 rounded-xl">
-                  <h3 className="font-bold text-morandi-gray-800 mb-2 flex items-center gap-2">
-                    <div className="p-1 bg-morandi-green-100 rounded-md">
-                      <Zap className="w-4 h-4 text-morandi-green-600" />
-                    </div>
-                    批改反馈
-                  </h3>
-                  <div className="text-sm text-morandi-gray-700 whitespace-pre-wrap bg-white p-3 rounded-lg">
-                    {feedback}
-                  </div>
-                </div>
-              )}
-            </div>
+                          </div>
           </div>
         </div>
       </div>
     </div>
+
+    {/* 批改反馈模态框 */}
+    <FeedbackModal
+      isOpen={isFeedbackModalOpen}
+      onClose={() => setIsFeedbackModalOpen(false)}
+      content={content}
+      feedback={feedback}
+    />
   );
 }
 
