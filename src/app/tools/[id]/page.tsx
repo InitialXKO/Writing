@@ -191,9 +191,10 @@ export default function ToolPage({ params }: { params: { id: string } }) {
                       </span>
                       <Link
                         href={`/write?tool=${toolId}&topic=${encodeURIComponent(exercise)}`}
-                        className="bg-morandi-beige-100 text-morandi-beige-800 px-2 py-1 rounded-full text-xs font-medium hover:bg-morandi-beige-200 transition-colors cursor-pointer"
+                        className="bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 hover:from-morandi-green-600 hover:to-morandi-green-700 text-white font-medium py-1 px-3 rounded-full text-xs transition-all duration-300 shadow-sm hover:shadow-md"
                       >
-                        实战练习
+                        <Edit className="w-3 h-3 inline mr-1" />
+                        练习此题材
                       </Link>
                     </div>
                   </div>
