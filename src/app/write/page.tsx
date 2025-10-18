@@ -461,91 +461,48 @@ function WriteContent() {
         {/* AI反馈和提示区域 */}
         <div className="space-y-6">
           {/* 核心工具提示 */}
-          {selectedTool === 'free-writing' ? (
-            <div className="bg-gradient-to-br from-morandi-purple-50 to-morandi-purple-100 border border-morandi-purple-200 rounded-2xl p-6">
-              <h2 className="text-lg font-bold text-morandi-purple-800 mb-4 flex items-center gap-2">
-                <div className="p-2 bg-morandi-purple-500/20 rounded-lg">
-                  <Lightbulb className="w-5 h-5 text-morandi-purple-700" />
-                </div>
-                自由写作口诀
-              </h2>
-              <div className="bg-white/50 p-4 rounded-xl mb-4">
-                <div className="text-lg font-bold text-morandi-purple-900 whitespace-pre-line">
-                  写作不是为了当一个"好学生"
-                  {'\n'}而是为了当一个"诚实的记录者"
-                  {'\n\n'}你的生活，你的感受，你的视角
-                  {'\n'}本身就价值连城
-                </div>
+          <div className="bg-gradient-to-br from-morandi-blue-50 to-morandi-blue-100 border border-morandi-blue-200 rounded-2xl p-6">
+            <h2 className="text-2xl font-bold text-morandi-blue-800 mb-4 flex items-center gap-2">
+              <div className="p-2 bg-morandi-blue-500/20 rounded-lg">
+                <Lightbulb className="w-5 h-5 text-morandi-blue-700" />
               </div>
+              核心口诀
+            </h2>
+            <div className="text-2xl font-bold text-morandi-blue-900 mb-3 bg-white/50 p-4 rounded-xl whitespace-pre-line">
+              {selectedToolData?.mantra}
             </div>
-          ) : (
-            <div className="bg-gradient-to-br from-morandi-blue-50 to-morandi-blue-100 border border-morandi-blue-200 rounded-2xl p-6">
-              <h2 className="text-lg font-bold text-morandi-blue-800 mb-4 flex items-center gap-2">
-                <div className="p-2 bg-morandi-blue-500/20 rounded-lg">
-                  <Lightbulb className="w-5 h-5 text-morandi-blue-700" />
-                </div>
-                核心口诀
-              </h2>
-              <div className="bg-white/50 p-4 rounded-xl mb-4">
-                <div className="text-lg font-bold text-morandi-blue-900">{selectedToolData?.mantra}</div>
-              </div>
-              <p className="text-morandi-blue-700 text-sm">{selectedToolData?.tips}</p>
-            </div>
-          )}
+            <p className="text-morandi-blue-700 bg-white/50 p-4 rounded-xl">{selectedToolData?.tips}</p>
+          </div>
 
           {/* 写作示范 */}
-          {selectedTool === 'free-writing' ? (
-            <div className="bg-gradient-to-br from-morandi-beige-50 to-morandi-beige-100 border border-morandi-beige-200 rounded-2xl p-6">
-              <h3 className="font-bold text-morandi-beige-800 mb-4 flex items-center gap-2">
-                <div className="p-2 bg-morandi-beige-500/20 rounded-lg">
-                  <Zap className="w-4 h-4 text-morandi-beige-700" />
-                </div>
-                自由写作示范
-              </h3>
-              <div className="bg-white/50 p-4 rounded-xl">
-                <p className="text-morandi-beige-800 whitespace-pre-line">
-                  写作，是生命本身的呼吸。
-                  {'\n'}它没有规则，唯一的裁判是你的内心。它是你与世界对话的方式，是你整理思想的工具，是你抵抗遗忘的武器。
-                  {'\n\n'}现在，请从这里开始：
-                  {'\n\n'}去写吧。
-                  {'\n'}就从那个让你心弦一颤的瞬间开始写起。
-                  {'\n'}写下你的困惑、你的骄傲、你的尴尬与你的热爱。
-                  {'\n'}因为这个世界，只有一个你。
-                  {'\n'}你的故事，值得被永恒地记录。
-                </p>
+          <div className="bg-white rounded-2xl shadow-card p-6 border border-morandi-gray-200">
+            <h3 className="text-2xl font-bold text-morandi-gray-800 mb-4 flex items-center gap-2">
+              <div className="p-2 bg-morandi-green-100 rounded-lg">
+                <Zap className="w-4 h-4 text-morandi-green-600" />
               </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-2xl shadow-card p-6 border border-morandi-gray-200">
-              <h3 className="font-bold text-morandi-gray-800 mb-4 flex items-center gap-2">
-                <div className="p-2 bg-morandi-green-100 rounded-lg">
-                  <Zap className="w-4 h-4 text-morandi-green-600" />
-                </div>
-                写作示范
-              </h3>
-              <div className="space-y-4">
-                {selectedToolData?.examples.slice(0, 1).map((example, index) => (
-                  <div key={index} className="space-y-3">
-                    <div className="bg-morandi-pink-50 border border-morandi-pink-200 rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-morandi-pink-700 mb-2">
-                        <div className="w-2 h-2 bg-morandi-pink-500 rounded-full"></div>
-                        <span className="font-medium text-sm">避免这样写</span>
-                      </div>
-                      <p className="text-morandi-pink-800 text-sm">{example.bad}</p>
+              写作示范
+            </h3>
+            <div className="space-y-4">
+              {selectedToolData?.examples.slice(0, 1).map((example, index) => (
+                <div key={index} className="space-y-3">
+                  <div className="bg-morandi-pink-50 border border-morandi-pink-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-morandi-pink-700 mb-2">
+                      <div className="w-2 h-2 bg-morandi-pink-500 rounded-full"></div>
+                      <span className="font-medium text-sm">避免这样写</span>
                     </div>
-
-                    <div className="bg-morandi-green-50 border border-morandi-green-200 rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-morandi-green-700 mb-2">
-                        <div className="w-2 h-2 bg-morandi-green-500 rounded-full"></div>
-                        <span className="font-medium text-sm">推荐这样写</span>
-                      </div>
-                      <p className="text-morandi-green-800 text-sm">{example.good}</p>
-                    </div>
+                    <p className="text-morandi-pink-800 text-sm">{example.bad}</p>
                   </div>
-                ))}
-              </div>
+                  <div className="bg-morandi-green-50 border border-morandi-green-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-morandi-green-700 mb-2">
+                      <div className="w-2 h-2 bg-morandi-green-500 rounded-full"></div>
+                      <span className="font-medium text-sm">推荐这样写</span>
+                    </div>
+                    <p className="text-morandi-green-800 text-sm">{example.good}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          )}
 
           {/* 行动任务 */}
           {actionItems.length > 0 && (

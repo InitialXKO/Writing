@@ -107,7 +107,7 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
               </div>
               口诀秘籍
             </h3>
-            <div className="text-2xl font-bold text-morandi-beige-900 mb-3 bg-white/50 p-4 rounded-xl">
+            <div className="text-2xl font-bold text-morandi-beige-900 mb-3 bg-white/50 p-4 rounded-xl whitespace-pre-line">
               {tool.mantra}
             </div>
             <p className="text-morandi-beige-700 bg-white/50 p-4 rounded-xl">{tool.tips}</p>

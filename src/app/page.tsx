@@ -186,7 +186,8 @@ export default function HomePage() {
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {writingTools.map((tool, index) => {
           const level = progress.levels.find(l => l.toolId === tool.id);
-          const isUnlocked = progress.unlockedTools.includes(tool.id);
+          // 自由写作工具始终是已解锁的
+          const isUnlocked = tool.id === 'free-writing' || progress.unlockedTools.includes(tool.id);
 
           return (
             <div
@@ -232,7 +233,7 @@ export default function HomePage() {
                 <div className="bg-gradient-to-r from-morandi-beige-50 to-morandi-beige-100 border border-morandi-beige-200 rounded-xl p-3">
                   <div className="text-sm font-bold text-morandi-beige-800 mb-1 flex items-center gap-2">
                     <div className="w-2 h-2 bg-morandi-beige-500 rounded-full"></div>
-                    口诀：{tool.mantra}
+                    <span className="whitespace-pre-line">口诀：{tool.mantra}</span>
                   </div>
                   <div className="text-xs text-morandi-beige-700">
                     {tool.tips}
