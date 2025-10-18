@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAppStore } from '@/lib/store';
+import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
-import { ArrowLeft, Send, Save, Sparkles, Edit3, Lightbulb, Zap } from 'lucide-react';
+import { ArrowLeft, Send, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
+import ActionItemsList from '@/components/ActionItemsList';
 
 function WriteContent() {
-  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig } = useAppStore();
+  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, updateActionItem } = useAppStore();
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -20,6 +21,7 @@ function WriteContent() {
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [editingEssayId, setEditingEssayId] = useState<string | null>(null);
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
+  const [actionItems, setActionItems] = useState<any[]>([]);
 
   // 从URL参数中获取预选的工具和题材
   useEffect(() => {
@@ -71,11 +73,22 @@ function WriteContent() {
       return;
     }
 
+    // 检查行动项完成情况
+    const completedActionItems = actionItems.filter(item => item.completed).length;
+    const totalActionItems = actionItems.length;
+
+    if (totalActionItems > 0 && completedActionItems < totalActionItems) {
+      const confirmSave = confirm(`您还有 ${totalActionItems - completedActionItems} 个修改任务未完成。确定要保存作文吗？`);
+      if (!confirmSave) {
+        return;
+      }
+    }
+
     if (editingEssayId) {
       // 如果是编辑已存在的作文，添加新版本
       if (editingVersionId) {
         // 如果是编辑特定版本，保存为新版本
-        addEssayVersion(editingEssayId, content, feedback);
+        addEssayVersion(editingEssayId, content, feedback, actionItems);
         alert('新版本已保存到作文中');
       } else {
         // 如果是编辑当前版本，更新作文
@@ -83,6 +96,8 @@ function WriteContent() {
           title,
           content,
           toolUsed: selectedTool,
+          feedback,
+          actionItems: actionItems,
         });
         alert('作文已更新');
       }
@@ -92,6 +107,8 @@ function WriteContent() {
         title,
         content,
         toolUsed: selectedTool,
+        feedback,
+        actionItems: actionItems,
       });
       alert('作文已保存到我的作文中');
     }
@@ -244,6 +261,25 @@ function WriteContent() {
       const aiFeedback = data.choices[0]?.message?.content || 'AI批改结果为空';
 
       setFeedback(aiFeedback);
+
+      // 生成行动项
+      const generatedActionItems = generateActionItems(aiFeedback);
+      setActionItems(generatedActionItems);
+
+      // 如果是编辑作文或新作文，将反馈和行动项保存到版本中
+      if (editingEssayId) {
+        addEssayVersion(editingEssayId, content, aiFeedback, generatedActionItems);
+      } else {
+        // 为新作文创建初始版本
+        const newEssay = {
+          title,
+          content,
+          toolUsed: selectedTool,
+          actionItems: generatedActionItems,
+        };
+        addEssay(newEssay);
+      }
+
       setIsFeedbackModalOpen(true);
     } catch (error) {
       console.error('AI批改失败:', error);
@@ -254,6 +290,14 @@ function WriteContent() {
   };
 
   const selectedToolData = writingTools.find(t => t.id === selectedTool);
+
+  const handleActionItemUpdate = (id: string, completed: boolean) => {
+    setActionItems(prevItems =>
+      prevItems.map(item =>
+        item.id === id ? { ...item, completed } : item
+      )
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-morandi-gray-100 to-white">
@@ -418,6 +462,14 @@ function WriteContent() {
             </div>
           </div>
 
+          {/* 行动任务 */}
+          {actionItems.length > 0 && (
+            <ActionItemsList
+              items={actionItems}
+              onUpdate={handleActionItemUpdate}
+            />
+          )}
+
           {/* AI反馈区域 */}
           <div className="bg-white rounded-2xl shadow-card p-6 border border-morandi-gray-200">
             <h2 className="text-lg font-bold text-morandi-gray-800 mb-4 flex items-center gap-2">
@@ -461,6 +513,8 @@ function WriteContent() {
         onClose={() => setIsFeedbackModalOpen(false)}
         content={content}
         feedback={feedback}
+        actionItems={actionItems}
+        onActionItemUpdate={handleActionItemUpdate}
       />
     </div>
   );

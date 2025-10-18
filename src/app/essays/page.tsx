@@ -2,25 +2,52 @@
 
 import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { ArrowLeft, Edit3, Eye, Trash2, History, BookOpen } from 'lucide-react';
+import { ArrowLeft, Edit3, Eye, Trash2, History, BookOpen, Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { Essay } from '@/types';
+import { Essay, EssayVersion } from '@/types';
 
 export default function EssaysPage() {
   const { essays, updateEssay } = useAppStore();
   const [selectedEssay, setSelectedEssay] = useState<Essay | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<EssayVersion | null>(null);
 
   const handleDeleteEssay = (id: string) => {
     if (confirm('确定要删除这篇作文吗？此操作不可撤销。')) {
       updateEssay(id, { id: '' } as any); // 通过设置id为空来标记删除
       if (selectedEssay?.id === id) {
         setSelectedEssay(null);
+        setSelectedVersion(null);
       }
     }
   };
 
   // 过滤掉已删除的作文
   const activeEssays = essays.filter(essay => essay.id);
+
+  // 获取当前显示的内容（选中的版本或当前作文）
+  const getCurrentContent = () => {
+    if (selectedVersion) {
+      return selectedVersion.content;
+    }
+    return selectedEssay?.content || '';
+  };
+
+  // 获取当前显示的反馈（选中的版本或当前作文）
+  const getCurrentFeedback = () => {
+    if (selectedVersion) {
+      return selectedVersion.feedback;
+    }
+    return selectedEssay?.feedback || '';
+  };
+
+  // 获取当前显示的标题（选中的版本会显示版本信息）
+  const getCurrentTitle = () => {
+    if (selectedVersion && selectedEssay) {
+      const versionIndex = selectedEssay.versions?.findIndex(v => v.id === selectedVersion.id);
+      return `${selectedEssay.title} - 版本 ${versionIndex !== undefined && versionIndex >= 0 ? selectedEssay.versions!.length - versionIndex : 'N/A'}`;
+    }
+    return selectedEssay?.title || '';
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-morandi-gray-100 to-white">
@@ -87,7 +114,10 @@ export default function EssaysPage() {
                         ? 'border-morandi-blue-500 bg-morandi-blue-50'
                         : 'border-morandi-gray-200 hover:border-morandi-blue-300 hover:bg-morandi-blue-50'
                     }`}
-                    onClick={() => setSelectedEssay(essay)}
+                    onClick={() => {
+                      setSelectedEssay(essay);
+                      setSelectedVersion(null);
+                    }}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1 min-w-0">
@@ -128,20 +158,30 @@ export default function EssaysPage() {
             <div className="bg-white rounded-2xl shadow-card p-6 border border-morandi-gray-200">
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-morandi-gray-800">{selectedEssay.title}</h2>
+                  <h2 className="text-2xl font-bold text-morandi-gray-800">{getCurrentTitle()}</h2>
                   <div className="flex items-center gap-4 mt-2 text-sm text-morandi-gray-600">
                     <span>{new Date(selectedEssay.createdAt).toLocaleDateString()}</span>
                     <span>使用工具：{selectedEssay.toolUsed}</span>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Link
-                    href={`/write?essayId=${selectedEssay.id}`}
-                    className="flex items-center gap-2 bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-all"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                    编辑
-                  </Link>
+                  {selectedVersion ? (
+                    <Link
+                      href={`/write?essayId=${selectedEssay.id}&versionId=${selectedVersion.id}`}
+                      className="flex items-center gap-2 bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-all"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      基于此版本编辑
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/write?essayId=${selectedEssay.id}`}
+                      className="flex items-center gap-2 bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-all"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      编辑当前版本
+                    </Link>
+                  )}
                 </div>
               </div>
 
@@ -155,69 +195,78 @@ export default function EssaysPage() {
                     修改历史
                   </h3>
                   <div className="space-y-2">
-                    {selectedEssay.versions.map((version, index) => (
-                      <div
-                        key={version.id}
-                        className="p-3 bg-morandi-gray-50 rounded-lg border border-morandi-gray-200"
-                      >
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-morandi-gray-700">
-                              版本 {selectedEssay.versions!.length - index}
-                            </span>
-                            <span className="text-xs text-morandi-gray-500">
-                              {new Date(version.createdAt).toLocaleString()}
-                            </span>
+                    {selectedEssay.versions.map((version, index) => {
+                      const isSelected = selectedVersion?.id === version.id;
+                      return (
+                        <div
+                          key={version.id}
+                          className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-morandi-blue-500 bg-morandi-blue-50'
+                              : 'border-morandi-gray-200 hover:border-morandi-blue-300 hover:bg-morandi-blue-50'
+                          }`}
+                          onClick={() => setSelectedVersion(version)}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-morandi-gray-700">
+                                版本 {selectedEssay.versions!.length - index}
+                              </span>
+                              <span className="text-xs text-morandi-gray-500">
+                                {new Date(version.createdAt).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex gap-2">
+                              <Link
+                                href={`/write?essayId=${selectedEssay.id}&versionId=${version.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-sm text-morandi-blue-600 hover:text-morandi-blue-800 flex items-center gap-1"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                                编辑
+                              </Link>
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            <Link
-                              href={`/write?essayId=${selectedEssay.id}&versionId=${version.id}`}
-                              className="text-sm text-morandi-blue-600 hover:text-morandi-blue-800 flex items-center gap-1"
-                            >
-                              <Eye className="w-3 h-3" />
-                              查看
-                            </Link>
-                          </div>
+                          {version.feedback && (
+                            <div className="mt-2 text-sm text-morandi-gray-600 bg-white p-2 rounded">
+                              <span className="font-medium">批改意见：</span>
+                              {version.feedback.substring(0, 100)}...
+                            </div>
+                          )}
                         </div>
-                        {version.feedback && (
-                          <div className="mt-2 text-sm text-morandi-gray-600 bg-white p-2 rounded">
-                            <span className="font-medium">批改意见：</span>
-                            {version.feedback.substring(0, 100)}...
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* 当前版本内容 */}
+              {/* 内容区域 */}
               <div>
                 <h3 className="font-bold text-morandi-gray-800 mb-3 flex items-center gap-2">
                   <div className="p-1 bg-morandi-blue-100 rounded-md">
                     <Edit3 className="w-4 h-4 text-morandi-blue-600" />
                   </div>
-                  当前版本内容
+                  {selectedVersion ? '版本内容' : '当前版本内容'}
                 </h3>
                 <div className="bg-morandi-gray-50 p-4 rounded-lg border border-morandi-gray-200">
                   <pre className="whitespace-pre-wrap font-sans text-morandi-gray-700">
-                    {selectedEssay.content}
+                    {getCurrentContent()}
                   </pre>
                 </div>
               </div>
 
-              {/* 当前版本批改意见 */}
-              {selectedEssay.feedback && (
+              {/* 批改意见 */}
+              {getCurrentFeedback() && (
                 <div className="mt-6">
                   <h3 className="font-bold text-morandi-gray-800 mb-3 flex items-center gap-2">
                     <div className="p-1 bg-morandi-green-100 rounded-md">
-                      <Eye className="w-4 h-4 text-morandi-green-600" />
+                      <Sparkles className="w-4 h-4 text-morandi-green-600" />
                     </div>
                     批改意见
                   </h3>
                   <div className="bg-morandi-green-50 p-4 rounded-lg border border-morandi-green-200">
                     <div className="text-morandi-gray-700 whitespace-pre-wrap">
-                      {selectedEssay.feedback}
+                      {getCurrentFeedback()}
                     </div>
                   </div>
                 </div>

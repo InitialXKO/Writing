@@ -1,6 +1,11 @@
+'use client';
+
+import { useState } from 'react';
 import { writingTools } from '@/data/tools';
-import { ArrowLeft, CheckCircle, Play, Edit, Award, Sparkles, Lightbulb } from 'lucide-react';
+import { useAppStore } from '@/lib/store';
+import { ArrowLeft, CheckCircle, Play, Edit, Award, Sparkles, Lightbulb, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
+import ComprehensionTest from '@/components/ComprehensionTest';
 
 // 为静态导出生成所有可能的路径
 export async function generateStaticParams() {
@@ -12,6 +17,12 @@ export async function generateStaticParams() {
 export default function ToolPage({ params }: { params: { id: string } }) {
   const toolId = params.id;
   const tool = writingTools.find(t => t.id === toolId);
+  const { progress, passTest } = useAppStore();
+  const [testPassed, setTestPassed] = useState(false);
+
+  // 检查测试是否已经通过
+  const level = progress.levels.find(l => l.toolId === toolId);
+  const isTestPassed = level?.testPassed || testPassed;
 
   if (!tool) {
     return (
@@ -36,6 +47,11 @@ export default function ToolPage({ params }: { params: { id: string } }) {
       </div>
     );
   }
+
+  const handleTestPass = () => {
+    setTestPassed(true);
+    passTest(toolId);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-morandi-gray-100 to-white">
@@ -131,6 +147,33 @@ export default function ToolPage({ params }: { params: { id: string } }) {
             </div>
           </div>
         </section>
+
+        {/* 理解测试 */}
+        {!isTestPassed && tool.comprehensionTest && (
+          <section>
+            <ComprehensionTest
+              test={tool.comprehensionTest}
+              onPass={handleTestPass}
+            />
+          </section>
+        )}
+
+        {/* 测试通过提示 */}
+        {isTestPassed && (
+          <section className="bg-morandi-green-50 border border-morandi-green-200 rounded-2xl p-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-morandi-green-500 rounded-full">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-morandi-green-800">恭喜！理解测试通过</h3>
+                <p className="text-morandi-green-700 text-sm">
+                  您已掌握{tool.name}工具的核心技巧，可以继续学习下一个写作工具了。
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* 正反案例 */}
         <section className="bg-white rounded-2xl shadow-card p-6 border border-morandi-gray-200">
