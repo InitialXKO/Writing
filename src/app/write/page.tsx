@@ -450,19 +450,19 @@ function WriteContent() {
                 )}
               </button>
 
-                          </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    {/* 批改反馈模态框 */}
-    <FeedbackModal
-      isOpen={isFeedbackModalOpen}
-      onClose={() => setIsFeedbackModalOpen(false)}
-      content={content}
-      feedback={feedback}
-    />
+      {/* 批改反馈模态框 */}
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        content={content}
+        feedback={feedback}
+      />
+    </div>
   );
 }
 
