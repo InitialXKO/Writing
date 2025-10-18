@@ -37,6 +37,7 @@ export interface AIConfig {
   apiKey: string;
   baseURL?: string;
   model?: string;
+  models?: string[]; // 可用模型列表
 }
 
 // 作文数据

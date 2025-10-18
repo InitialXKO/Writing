@@ -6,11 +6,11 @@ import { ArrowLeft, Key, Globe, RotateCcw, Save, Shield, Info, RefreshCw, CheckC
 import Link from 'next/link';
 
 export default function SettingsPage() {
-  const { aiConfig, setAIConfig, resetProgress } = useAppStore();
+  const { aiConfig, setAIConfig, setAvailableModels, resetProgress } = useAppStore();
   const [apiKey, setApiKey] = useState(aiConfig?.apiKey || '');
   const [baseURL, setBaseURL] = useState(aiConfig?.baseURL || '');
   const [model, setModel] = useState(aiConfig?.model || 'gpt-4');
-  const [models, setModels] = useState<string[]>([]);
+  const [models, setModels] = useState<string[]>(aiConfig?.models || []);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'error' | null>(null);
@@ -55,6 +55,8 @@ export default function SettingsPage() {
       if (data.data && Array.isArray(data.data)) {
         const modelNames = data.data.map((model: any) => model.id).filter(Boolean);
         setModels(modelNames);
+        // 保存模型列表到store
+        setAvailableModels(modelNames);
         alert('模型列表获取成功');
       } else {
         throw new Error('响应格式不正确');
@@ -107,6 +109,7 @@ export default function SettingsPage() {
       apiKey,
       baseURL,
       model,
+      models: aiConfig?.models || [], // 保留现有的模型列表
     });
     alert('配置已保存');
   };

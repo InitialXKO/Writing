@@ -13,6 +13,7 @@ interface AppState {
   // AI 配置
   aiConfig: AIConfig | null;
   setAIConfig: (config: AIConfig) => void;
+  setAvailableModels: (models: string[]) => void; // 设置可用模型列表
 
   // 作文管理
   essays: Essay[];
@@ -96,6 +97,9 @@ export const useAppStore = create<AppState>()(
 
       // AI 配置
       setAIConfig: (config) => set({ aiConfig: config }),
+      setAvailableModels: (models) => set((state) => ({
+        aiConfig: state.aiConfig ? { ...state.aiConfig, models } : { models, apiKey: '', model: 'gpt-4' }
+      })),
 
       // 作文管理
       addEssay: (essayData) => {
