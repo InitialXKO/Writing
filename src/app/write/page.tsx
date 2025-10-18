@@ -108,8 +108,25 @@ ${content}
 
 继续加油！`;
 
+      // 根据baseURL自动推断API端点
+      const getActualEndpoint = () => {
+        if (!aiConfig?.baseURL) return 'https://api.openai.com/v1';
+        // 处理不同格式的URL
+        let url = aiConfig.baseURL.trim();
+        if (!url.startsWith('http')) {
+          url = 'https://' + url;
+        }
+        if (!url.endsWith('/v1') && !url.includes('/v1/')) {
+          url = url.endsWith('/') ? url + 'v1' : url + '/v1';
+        }
+        return url;
+      };
+
+      const endpoint = getActualEndpoint();
+      console.log('API Endpoint:', endpoint); // 调试日志
+
       // 调用真实的AI API
-      const response = await fetch(`${aiConfig.baseURL || 'https://api.openai.com/v1'}/chat/completions`, {
+      const response = await fetch(`${endpoint}/chat/completions`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${aiConfig.apiKey}`,
@@ -133,7 +150,18 @@ ${content}
       });
 
       if (!response.ok) {
-        throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+        // 尝试读取错误响应体
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`API请求失败: ${response.status} ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}...`);
+      }
+
+      // 检查响应内容类型
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const responseText = await response.text();
+        console.error('Non-JSON Response:', responseText);
+        throw new Error(`API返回非JSON响应，内容类型: ${contentType || 'unknown'}\n响应内容预览: ${responseText.substring(0, 200)}...`);
       }
 
       const data = await response.json();
