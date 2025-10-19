@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 
 interface CompositionPaperProps {
   value: string;
@@ -17,11 +17,13 @@ export default function CompositionPaper({
 }: CompositionPaperProps) {
   const [isFocused, setIsFocused] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 稿纸规格
   const charsPerLine = 20;  // 每行字符数
   const linesPerPage = 25;  // 每页行数
+
+  // 将文本转换为字符数组，处理emoji等多字节字符
+  const characters = Array.from(value);
 
   // 处理输入变化
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -33,16 +35,16 @@ export default function CompositionPaper({
       {/* 稿纸容器 */}
       <div
         ref={containerRef}
-        className="border border-morandi-gray-300 rounded-xl bg-amber-50 overflow-hidden relative"
+        className="border border-gray-300 rounded-xl bg-amber-50 overflow-hidden relative"
+        style={{ height: '600px' }}
       >
-        {/* 网格背景 */}
+        {/* 网格背景和字符显示层合并 */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${charsPerLine}, minmax(0, 1fr))`,
-            gridTemplateRows: `repeat(${linesPerPage}, minmax(0, 1fr))`,
-            height: '600px',
+            gridTemplateColumns: `repeat(${charsPerLine}, 1fr)`,
+            gridTemplateRows: `repeat(${linesPerPage}, 1fr)`,
             padding: '1rem',
             gap: '0',
           }}
@@ -53,21 +55,34 @@ export default function CompositionPaper({
             const isHundredMark = (index + 1) % 100 === 0;
             const isLineStart = colIndex === 0;
 
+            // 获取对应位置的字符
+            const char = characters[index] || '';
+
             return (
               <div
                 key={index}
                 className={`
-                  border border-amber-200
-                  ${isHundredMark ? 'border-r-2 border-blue-400' : ''}
-                  ${isLineStart ? 'border-l-2 border-amber-300' : ''}
+                  border border-gray-200 flex items-center justify-center relative
+                  ${isHundredMark ? 'border-r-2 border-blue-500' : ''}
+                  ${isLineStart ? 'border-l-2 border-gray-400' : ''}
                 `}
-                style={{
-                  minHeight: '24px',
-                }}
               >
+                {/* 字符显示 */}
+                {char && (
+                  <span
+                    className="text-base leading-none"
+                    style={{
+                      fontFamily: "'仿宋', 'FangSong', serif",
+                      color: '#333'
+                    }}
+                  >
+                    {char}
+                  </span>
+                )}
+
                 {/* 每百字标记 */}
                 {isHundredMark && rowIndex === 0 && (
-                  <div className="absolute -top-6 -ml-2 text-xs text-blue-600 font-bold bg-white px-1 rounded">
+                  <div className="absolute -top-6 right-0 text-xs text-blue-600 font-bold bg-white px-1 rounded shadow">
                     {index + 1}
                   </div>
                 )}
@@ -76,31 +91,30 @@ export default function CompositionPaper({
           })}
         </div>
 
-        {/* 文本输入区域 */}
+        {/* 透明文本输入区域 */}
         <textarea
-          ref={textareaRef}
           value={value}
           onChange={handleChange}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
           className={`
-            relative w-full h-full min-h-[600px] p-4 bg-transparent resize-none focus:outline-none
-            font-serif text-lg leading-6 caret-blue-500 z-10
+            absolute inset-0 w-full h-full p-4 bg-transparent resize-none focus:outline-none
+            text-transparent caret-blue-500 z-10
             ${isFocused ? 'ring-2 ring-blue-500 ring-inset' : ''}
           `}
           style={{
             fontFamily: "'仿宋', 'FangSong', serif",
-            letterSpacing: '0.1em',
-            wordBreak: 'break-all',
-            whiteSpace: 'pre-wrap',
+            fontSize: '16px',
+            lineHeight: '1.2',
+            letterSpacing: 'normal',
           }}
         />
       </div>
 
       {/* 字符计数显示 */}
-      <div className="absolute top-2 right-2 text-xs text-gray-500 bg-white/80 px-2 py-1 rounded shadow">
-        {Array.from(value).length} 字
+      <div className="absolute top-2 right-2 text-xs text-gray-600 bg-white/90 px-2 py-1 rounded shadow">
+        {characters.length} 字
       </div>
     </div>
   );
