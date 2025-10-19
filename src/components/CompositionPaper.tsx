@@ -23,6 +23,11 @@ export default function CompositionPaper({
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 同步外部 value 到 prevValue，避免程序性更新后首个输入被误判为“包含之前新增的换行”，触发额外缩进
+  useEffect(() => {
+    setPrevValue(value);
+  }, [value]);
+
   // 根据屏幕宽度调整每行字符数
   const getCharsPerLine = () => {
     if (typeof window === 'undefined') {
