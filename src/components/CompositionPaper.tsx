@@ -464,11 +464,11 @@ export default function CompositionPaper({
       let textIndex = 0;
       let currentText = value; // 跟踪当前文本
 
-      if (charIndex >= 0) {
-        // 直接使用计算出的字符索引
+      if (charIndex >= 0 && charIndex < value.length) {
+        // 直接使用计算出的字符索引（在文本范围内）
         textIndex = charIndex;
       } else {
-        // 如果没有对应的字符，需要扩展文本到目标位置
+        // 点击位置在文本末尾之后或没有精确对应字符，需要扩展文本到目标位置
         // 确保有足够的空格来保证输入的字出现在所点击的空格子位置
         let newText = value;
         const targetRow = Math.floor(gridIndex / charsPerLine);
