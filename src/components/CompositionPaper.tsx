@@ -469,6 +469,7 @@ export default function CompositionPaper({
         textIndex = charIndex;
       } else {
         // 如果没有对应的字符，需要扩展文本到目标位置
+        // 确保有足够的空格来保证输入的字出现在所点击的空格子位置
         let newText = value;
         const targetRow = Math.floor(gridIndex / charsPerLine);
         const targetCol = gridIndex % charsPerLine;
@@ -524,7 +525,7 @@ export default function CompositionPaper({
           remainingCols += charsPerLine;
         }
 
-        // 如果目标位置在当前文本之后，需要添加换行符和空格
+        // 确保有足够的空格来保证输入的字出现在所点击的空格子位置
         if (remainingRows > 0 || (remainingRows === 0 && remainingCols > 0)) {
           // 如果当前列不为0且需要换行，先添加换行符
           if (currentCol > 0 && remainingRows >= 0) {
@@ -550,16 +551,19 @@ export default function CompositionPaper({
           // 插入位置是添加所有空白后的位置
           textIndex = newText.length;
         } else {
-          // 目标位置在现有文本范围内，需要精确计算插入位置
-          // 重新遍历文本找到准确的插入点
-          let insertPos = newText.length; // 默认插入到文本末尾
+          // 目标位置在现有文本范围内，但可能没有字符占据该位置
+          // 我们需要确保在该位置有足够的空格
+          let insertPos = 0;
           currentRow = 0;
           currentCol = 0;
+          let foundPosition = false;
 
+          // 遍历现有文本，找到目标位置
           for (let i = 0; i < newText.length; i++) {
             // 检查是否到达目标位置
             if (currentRow === targetRow && currentCol === targetCol) {
               insertPos = i;
+              foundPosition = true;
               break;
             }
 
@@ -600,11 +604,38 @@ export default function CompositionPaper({
             // 如果已经超过了目标位置，就停止遍历
             if (currentRow > targetRow || (currentRow === targetRow && currentCol > targetCol)) {
               insertPos = i;
+              foundPosition = true;
               break;
             }
           }
 
-          textIndex = insertPos;
+          // 如果没有找到目标位置，说明需要扩展文本
+          if (!foundPosition) {
+            // 计算从当前位置到目标位置需要添加的字符
+            let charsToAdd = 0;
+
+            // 如果需要换行
+            if (targetRow > currentRow) {
+              // 添加换行符
+              for (let i = currentRow; i < targetRow; i++) {
+                newText += '\n';
+              }
+              // 重置列位置
+              currentCol = 0;
+            }
+
+            // 添加空格到目标列
+            for (let i = currentCol; i < targetCol; i++) {
+              newText += ' ';
+            }
+
+            // 更新文本
+            onChange(newText);
+            currentText = newText;
+            textIndex = newText.length;
+          } else {
+            textIndex = insertPos;
+          }
         }
       }
 
