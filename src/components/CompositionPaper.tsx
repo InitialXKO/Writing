@@ -21,6 +21,8 @@ export default function CompositionPaper({
   // 稿纸规格
   const charsPerLine = 20;  // 每行字符数
   const linesPerPage = 25;  // 每页行数
+  const cellSize = 24;  // 每个格子的大小（正方形）
+  const rowGap = 8;  // 横排之间的间隔
 
   // 将文本转换为字符数组，处理emoji等多字节字符
   const characters = Array.from(value);
@@ -44,9 +46,10 @@ export default function CompositionPaper({
           style={{
             display: 'grid',
             gridTemplateColumns: `repeat(${charsPerLine}, 1fr)`,
-            gridTemplateRows: `repeat(${linesPerPage}, 1fr)`,
+            gridTemplateRows: `repeat(${linesPerPage}, ${cellSize}px)`,
             padding: '1rem',
-            gap: '0',
+            columnGap: `${rowGap}px`,
+            rowGap: '0',
           }}
         >
           {Array.from({ length: charsPerLine * linesPerPage }).map((_, index) => {
@@ -62,9 +65,9 @@ export default function CompositionPaper({
               <div
                 key={index}
                 className={`
-                  border border-gray-200 flex items-center justify-center relative
-                  ${isHundredMark ? 'border-r-2 border-blue-500' : ''}
-                  ${isLineStart ? 'border-l-2 border-gray-400' : ''}
+                  border border-gray-300 flex items-center justify-center relative
+                  ${isHundredMark ? 'border-r-2 border-gray-300' : ''}
+                  ${isLineStart ? 'border-l-2 border-gray-300' : ''}
                 `}
               >
                 {/* 字符显示 */}
