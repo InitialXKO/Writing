@@ -10,6 +10,11 @@ interface DailyChallengeProps {
 }
 
 export default function DailyChallengeCard({ challenge }: DailyChallengeProps) {
+  // 确保日期是 Date 对象，如果不是则转换
+  const challengeDate = typeof challenge.date === 'string'
+    ? new Date(challenge.date)
+    : challenge.date;
+
   return (
     <div className="bg-gradient-to-br from-morandi-purple-50 to-morandi-purple-100 border border-morandi-purple-200 rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
@@ -21,7 +26,7 @@ export default function DailyChallengeCard({ challenge }: DailyChallengeProps) {
         </h3>
         <div className="flex items-center gap-2 text-morandi-purple-700">
           <Calendar className="w-4 h-4" />
-          <span className="text-sm font-medium">{challenge.date.toLocaleDateString('zh-CN')}</span>
+          <span className="text-sm font-medium">{challengeDate.toLocaleDateString('zh-CN')}</span>
         </div>
       </div>
 

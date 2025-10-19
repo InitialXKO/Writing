@@ -126,7 +126,7 @@ export default function EssaysPage() {
                           {essay.content.substring(0, 50)}...
                         </p>
                         <div className="flex items-center gap-2 mt-2 text-xs text-morandi-gray-500">
-                          <span>{new Date(essay.createdAt).toLocaleDateString()}</span>
+                          <span>{(typeof essay.createdAt === 'string' ? new Date(essay.createdAt) : essay.createdAt).toLocaleDateString()}</span>
                           {essay.versions && essay.versions.length > 0 && (
                             <span className="flex items-center gap-1">
                               <History className="w-3 h-3" />
@@ -160,7 +160,7 @@ export default function EssaysPage() {
                 <div>
                   <h2 className="text-2xl font-bold text-morandi-gray-800">{getCurrentTitle()}</h2>
                   <div className="flex items-center gap-4 mt-2 text-sm text-morandi-gray-600">
-                    <span>{new Date(selectedEssay.createdAt).toLocaleDateString()}</span>
+                    <span>{(typeof selectedEssay.createdAt === 'string' ? new Date(selectedEssay.createdAt) : selectedEssay.createdAt).toLocaleDateString()}</span>
                     <span>使用工具：{selectedEssay.toolUsed}</span>
                   </div>
                 </div>
@@ -213,7 +213,7 @@ export default function EssaysPage() {
                                 版本 {selectedEssay.versions!.length - index}
                               </span>
                               <span className="text-xs text-morandi-gray-500">
-                                {new Date(version.createdAt).toLocaleString()}
+                                {(typeof version.createdAt === 'string' ? new Date(version.createdAt) : version.createdAt).toLocaleString()}
                               </span>
                             </div>
                             <div className="flex gap-2">

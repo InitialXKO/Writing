@@ -161,7 +161,7 @@ export default function ClientProgress({ tools }: ClientProgressProps) {
                   <div className="flex items-center justify-between text-xs text-morandi-gray-500">
                     <div className="flex items-center gap-2 bg-morandi-gray-100 px-2 py-1 rounded">
                       <Calendar className="w-3 h-3" />
-                      {essay.createdAt.toLocaleDateString('zh-CN')}
+                      {(typeof essay.createdAt === 'string' ? new Date(essay.createdAt) : essay.createdAt).toLocaleDateString('zh-CN')}
                     </div>
                     <button className="flex items-center gap-1 text-morandi-blue-600 hover:text-morandi-blue-700 font-medium">
                       <Edit className="w-3 h-3" />

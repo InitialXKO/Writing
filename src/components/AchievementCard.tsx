@@ -21,7 +21,7 @@ export default function AchievementCard({ achievement }: AchievementCardProps) {
           <p className="text-sm text-morandi-gray-600 mb-2">{achievement.description}</p>
           <div className="flex items-center gap-2 text-xs text-morandi-gray-500">
             <Star className="w-3 h-3 text-morandi-yellow-500" />
-            <span>获得于 {new Date(achievement.earnedAt).toLocaleDateString('zh-CN')}</span>
+            <span>获得于 {(typeof achievement.earnedAt === 'string' ? new Date(achievement.earnedAt) : achievement.earnedAt).toLocaleDateString('zh-CN')}</span>
           </div>
         </div>
       </div>
