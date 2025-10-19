@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { writingTools } from '@/data/tools';
 import { useAppStore } from '@/lib/store';
 import { canUnlockTool } from '@/lib/store'; // 导入解锁条件检查函数
-import { Trophy, BookOpen, Settings, Play, Sparkles, Library, Calendar, Star, Lock } from 'lucide-react';
+import { Trophy, BookOpen, Settings, Play, Sparkles, Library, Star, Lock } from 'lucide-react';
 import Link from 'next/link';
 import DailyChallengeCard from '@/components/DailyChallenge';
 import AchievementCard from '@/components/AchievementCard';

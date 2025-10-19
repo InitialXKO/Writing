@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { writingTools } from '@/data/tools';
 import { useAppStore, canUnlockTool } from '@/lib/store'; // 导入解锁条件检查函数
-import { ArrowLeft, CheckCircle, Play, Edit, Award, Sparkles, Lightbulb, ShieldCheck, Lock, Unlock, BookOpen } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Play, Edit, Award, Sparkles, Lightbulb, ShieldCheck, Lock, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import ComprehensionTest from '@/components/ComprehensionTest';
 

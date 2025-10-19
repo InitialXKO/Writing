@@ -1,6 +1,5 @@
 'use client';
 
-import { useAppStore } from '@/lib/store';
 import { DailyChallenge } from '@/types';
 import { Sparkles, CheckCircle, Calendar, Trophy, Edit3 } from 'lucide-react';
 import Link from 'next/link';

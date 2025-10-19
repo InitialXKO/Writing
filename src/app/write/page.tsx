@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react';
 import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
-import { ArrowLeft, Send, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle } from 'lucide-react';
+import { getActualEndpoint } from '@/lib/utils';
+import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
 import CompositionPaper from '@/components/CompositionPaper';
 
 function WriteContent() {
-  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, updateActionItem, progress, setDailyChallenge } = useAppStore();
+  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, progress, setDailyChallenge } = useAppStore();
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -136,8 +137,8 @@ function WriteContent() {
 
       setDailyChallenge(updatedChallenge);
 
-      // 显示完成提示
-      alert(`恭喜完成今日挑战！连续写作天数：${updatedChallenge.streak + 1}天`);
+      // 显示完成提示（显示最新的 streak 数值）
+      alert(`恭喜完成今日挑战！连续写作天数：${updatedChallenge.streak}天`);
     }
   };
 
@@ -244,21 +245,8 @@ function WriteContent() {
 
 继续加油！`;
 
-      // 根据baseURL自动推断API端点
-      const getActualEndpoint = () => {
-        if (!aiConfig?.baseURL) return 'https://api.openai.com/v1';
-        // 处理不同格式的URL
-        let url = aiConfig.baseURL.trim();
-        if (!url.startsWith('http')) {
-          url = 'https://' + url;
-        }
-        if (!url.endsWith('/v1') && !url.includes('/v1/')) {
-          url = url.endsWith('/') ? url + 'v1' : url + '/v1';
-        }
-        return url;
-      };
-
-      const endpoint = getActualEndpoint();
+      // 解析实际 API 端点
+      const endpoint = getActualEndpoint(aiConfig?.baseURL);
       console.log('API Endpoint:', endpoint); // 调试日志
 
       // 调用真实的AI API
@@ -309,18 +297,9 @@ function WriteContent() {
       const generatedActionItems = generateActionItems(aiFeedback);
       setActionItems(generatedActionItems);
 
-      // 如果是编辑作文或新作文，将反馈和行动项保存到版本中
+      // 如果在编辑已存在的作文，则把反馈和行动项作为新版本保存
       if (editingEssayId) {
         addEssayVersion(editingEssayId, content, aiFeedback, generatedActionItems);
-      } else {
-        // 为新作文创建初始版本
-        const newEssay = {
-          title,
-          content,
-          toolUsed: selectedTool,
-          actionItems: generatedActionItems,
-        };
-        addEssay(newEssay);
       }
 
       setIsFeedbackModalOpen(true);

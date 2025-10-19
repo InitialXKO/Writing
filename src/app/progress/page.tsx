@@ -1,5 +1,5 @@
 import { writingTools } from '@/data/tools';
-import { ArrowLeft, BookOpen, Star } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import ClientProgress from './client-progress';
 

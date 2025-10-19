@@ -23,6 +23,11 @@ export default function CompositionPaper({
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 同步外部 value 到 prevValue，避免程序性更新后首个输入被误判为“包含之前新增的换行”，触发额外缩进
+  useEffect(() => {
+    setPrevValue(value);
+  }, [value]);
+
   // 根据屏幕宽度调整每行字符数
   const getCharsPerLine = () => {
     if (typeof window === 'undefined') {
@@ -464,11 +469,11 @@ export default function CompositionPaper({
       let textIndex = 0;
       let currentText = value; // 跟踪当前文本
 
-      if (charIndex >= 0) {
-        // 直接使用计算出的字符索引
+      if (charIndex >= 0 && charIndex < value.length) {
+        // 直接使用计算出的字符索引（在文本范围内）
         textIndex = charIndex;
       } else {
-        // 如果没有对应的字符，需要扩展文本到目标位置
+        // 点击位置在文本末尾之后或没有精确对应字符，需要扩展文本到目标位置
         // 确保有足够的空格来保证输入的字出现在所点击的空格子位置
         let newText = value;
         const targetRow = Math.floor(gridIndex / charsPerLine);
@@ -515,40 +520,24 @@ export default function CompositionPaper({
           }
         }
 
-        // 计算需要添加的字符来填充到目标位置
-        let remainingRows = targetRow - currentRow;
-        let remainingCols = targetCol - currentCol;
+        // 采用线性单元填充算法：计算从文本末尾位置到目标网格位置需要前进的单元数
+        const currentGridIndex = currentRow * charsPerLine + currentCol;
+        const targetGridIndex = targetRow * charsPerLine + targetCol;
+        const deltaCells = Math.max(0, targetGridIndex - currentGridIndex);
 
-        // 如果列数不够，需要借位
-        if (remainingCols < 0) {
-          remainingRows--;
-          remainingCols += charsPerLine;
-        }
-
-        // 确保有足够的空格来保证输入的字出现在所点击的空格子位置
-        if (remainingRows > 0 || (remainingRows === 0 && remainingCols > 0)) {
-          // 如果当前列不为0且需要换行，先添加换行符
-          if (currentCol > 0 && remainingRows >= 0) {
-            newText += '\n';
-            currentRow++;
-            currentCol = 0;
-            remainingRows--;
+        if (deltaCells > 0) {
+          let fill = '';
+          for (let i = 0; i < deltaCells; i++) {
+            const col = (currentCol + i) % charsPerLine;
+            if (col === charsPerLine - 1) {
+              fill += '\n';
+            } else {
+              fill += ' ';
+            }
           }
-
-          // 添加必要的换行符
-          for (let i = 0; i < remainingRows; i++) {
-            newText += '\n';
-          }
-
-          // 添加必要的空格来填充到目标列
-          for (let i = 0; i < remainingCols; i++) {
-            newText += ' ';
-          }
-
-          // 更新文本
+          newText += fill;
           onChange(newText);
-          currentText = newText; // 更新当前文本
-          // 插入位置是添加所有空白后的位置
+          currentText = newText;
           textIndex = newText.length;
         } else {
           // 目标位置在现有文本范围内，但可能没有字符占据该位置
@@ -557,17 +546,23 @@ export default function CompositionPaper({
           currentRow = 0;
           currentCol = 0;
           let foundPosition = false;
+          let prevRow = 0;
+          let prevCol = 0;
 
           // 遍历现有文本，找到目标位置
           for (let i = 0; i < newText.length; i++) {
-            // 检查是否到达目标位置
+            // 如果刚好到达目标位置
             if (currentRow === targetRow && currentCol === targetCol) {
               insertPos = i;
               foundPosition = true;
+              textIndex = insertPos;
               break;
             }
 
             const char = newText[i];
+            prevRow = currentRow;
+            prevCol = currentCol;
+
             if (char === '\n') {
               currentRow++;
               currentCol = 0;
@@ -605,22 +600,35 @@ export default function CompositionPaper({
             if (currentRow > targetRow || (currentRow === targetRow && currentCol > targetCol)) {
               insertPos = i;
               foundPosition = true;
+
+              // 如果越界发生在目标行（多半是遇到该行的换行符），在换行符前补足空格
+              if (prevRow === targetRow) {
+                const missing = targetCol - prevCol;
+                if (missing > 0) {
+                  const fill2 = ' '.repeat(missing);
+                  newText = newText.slice(0, insertPos) + fill2 + newText.slice(insertPos);
+                  onChange(newText);
+                  currentText = newText;
+                  textIndex = insertPos + missing;
+                } else {
+                  textIndex = insertPos;
+                }
+              } else {
+                // 不是目标行，直接使用插入位置
+                textIndex = insertPos;
+              }
+
               break;
             }
           }
 
-          // 如果没有找到目标位置，说明需要扩展文本
+          // 如果没有找到目标位置，说明需要从当前位置扩展文本到目标位置
           if (!foundPosition) {
-            // 计算从当前位置到目标位置需要添加的字符
-            let charsToAdd = 0;
-
             // 如果需要换行
             if (targetRow > currentRow) {
-              // 添加换行符
               for (let i = currentRow; i < targetRow; i++) {
                 newText += '\n';
               }
-              // 重置列位置
               currentCol = 0;
             }
 
@@ -633,8 +641,6 @@ export default function CompositionPaper({
             onChange(newText);
             currentText = newText;
             textIndex = newText.length;
-          } else {
-            textIndex = insertPos;
           }
         }
       }
@@ -642,19 +648,21 @@ export default function CompositionPaper({
       // 确保textIndex不会超出文本长度
       textIndex = Math.min(textIndex, currentText.length);
 
-      // 设置textarea的光标位置，防止滚动
-      textareaRef.current.focus({ preventScroll: true });
-      textareaRef.current.setSelectionRange(textIndex, textIndex);
-
-      // 设置textarea的位置到点击的格子处（只设置top，不设置left）
+      // 计算目标行的可视位置
       const rowIndex = Math.floor(gridIndex / charsPerLine);
       const gridTop = (rowIndex * (cellSize + rowGap)) + 16; // rowGap和16px是padding
-      textareaRef.current.style.top = `${gridTop}px`;
-      // 确保left保持为0，防止页面移动
-      textareaRef.current.style.left = '0';
 
-      // 高亮用户点击的格子
-      setCursorPosition(gridIndex);
+      // 推迟到下一帧设置光标与位置，避免 onChange 触发的重渲染覆盖选择位置
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus({ preventScroll: true });
+          textareaRef.current.setSelectionRange(textIndex, textIndex);
+          textareaRef.current.style.top = `${gridTop}px`;
+          textareaRef.current.style.left = '0';
+        }
+        // 高亮用户点击的格子
+        setCursorPosition(gridIndex);
+      }, 0);
     }
 
     // 恢复滚动位置

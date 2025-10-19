@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
+import { getActualEndpoint } from '@/lib/utils';
 import { ArrowLeft, Key, Globe, RotateCcw, Save, Shield, Info, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -16,19 +17,7 @@ export default function SettingsPage() {
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'error' | null>(null);
   const [connectionMessage, setConnectionMessage] = useState('');
 
-  // 根据baseURL自动推断API端点
-  const getActualEndpoint = () => {
-    if (!baseURL) return 'https://api.openai.com/v1';
-    // 处理不同格式的URL
-    let url = baseURL.trim();
-    if (!url.startsWith('http')) {
-      url = 'https://' + url;
-    }
-    if (!url.endsWith('/v1') && !url.includes('/v1/')) {
-      url = url.endsWith('/') ? url + 'v1' : url + '/v1';
-    }
-    return url;
-  };
+  // 使用通用工具函数 getActualEndpoint(baseURL)
 
   // 从供应商拉取模型列表
   const fetchModels = async () => {
@@ -39,7 +28,7 @@ export default function SettingsPage() {
 
     setIsFetchingModels(true);
     try {
-      const endpoint = getActualEndpoint();
+      const endpoint = getActualEndpoint(baseURL);
       const response = await fetch(`${endpoint}/models`, {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -81,7 +70,7 @@ export default function SettingsPage() {
     setConnectionMessage('');
 
     try {
-      const endpoint = getActualEndpoint();
+      const endpoint = getActualEndpoint(baseURL);
       const response = await fetch(`${endpoint}/models`, {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -199,7 +188,7 @@ export default function SettingsPage() {
               {baseURL && (
                 <div className="mt-2 p-3 bg-morandi-gray-50 rounded-lg">
                   <p className="text-sm text-morandi-gray-600">
-                    实际使用端点: <span className="font-mono text-morandi-blue-600">{getActualEndpoint()}</span>
+                    实际使用端点: <span className="font-mono text-morandi-blue-600">{getActualEndpoint(baseURL)}</span>
                   </p>
                 </div>
               )}
