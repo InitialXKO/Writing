@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getActualEndpoint } from '@/lib/utils';
 import { ArrowLeft, Key, Globe, RotateCcw, Save, Shield, Info, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
@@ -16,6 +16,14 @@ export default function SettingsPage() {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'error' | null>(null);
   const [connectionMessage, setConnectionMessage] = useState('');
+
+  // 同步本地状态与全局 AI 配置（处理持久化后的回显）
+  useEffect(() => {
+    setApiKey(aiConfig?.apiKey || '');
+    setBaseURL(aiConfig?.baseURL || '');
+    setModel(aiConfig?.model || 'gpt-4');
+    setModels(aiConfig?.models || []);
+  }, [aiConfig]);
 
   // 使用通用工具函数 getActualEndpoint(baseURL)
 

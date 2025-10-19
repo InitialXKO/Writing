@@ -472,7 +472,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         progress: state.progress,
         essays: state.essays,
-        aiConfig: state.aiConfig ? { ...state.aiConfig, apiKey: '' } : null,
+        aiConfig: state.aiConfig, // 持久化完整 AI 配置（包括 apiKey）
       }),
     }
   )
