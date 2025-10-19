@@ -238,7 +238,7 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
               <div>
                 <h3 className="font-bold text-morandi-green-800">恭喜！理解测试通过</h3>
                 <p className="text-morandi-green-700 text-sm">
-                  您已掌握{tool.name}工具的核心技巧，可以继续学习下一个写作工具了。
+                  您已掌握{tool.name}工具的核心技巧，可以开始练习本工具了。
                 </p>
               </div>
             </div>
@@ -302,13 +302,23 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
                       <span className="bg-morandi-blue-100 text-morandi-blue-800 px-2 py-1 rounded-full text-xs font-medium">
                         {tool.name}
                       </span>
-                      <Link
-                        href={`/write?tool=${toolId}&topic=${encodeURIComponent(exercise)}`}
-                        className="bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 hover:from-morandi-green-600 hover:to-morandi-green-700 text-white font-medium py-1 px-3 rounded-full text-xs transition-all duration-300 shadow-sm hover:shadow-md"
-                      >
-                        <Edit className="w-3 h-3 inline mr-1" />
-                        练习此题材
-                      </Link>
+                      {(tool.id === 'free-writing' || isTestPassed) ? (
+                        <Link
+                          href={`/write?tool=${toolId}&topic=${encodeURIComponent(exercise)}`}
+                          className="bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 hover:from-morandi-green-600 hover:to-morandi-green-700 text-white font-medium py-1 px-3 rounded-full text-xs transition-all duration-300 shadow-sm hover:shadow-md"
+                        >
+                          <Edit className="w-3 h-3 inline mr-1" />
+                          练习此题材
+                        </Link>
+                      ) : (
+                        <button
+                          disabled
+                          className="bg-morandi-gray-200 text-morandi-gray-500 font-medium py-1 px-3 rounded-full text-xs cursor-not-allowed"
+                          title="通过理解测试后解锁练习"
+                        >
+                          通过理解测试后解锁练习
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -319,13 +329,24 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
 
         <div className="text-center pt-4 space-y-4">
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href={`/write?tool=${toolId}`}
-              className="bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 text-white font-bold py-4 px-8 rounded-2xl text-lg hover:from-morandi-blue-600 hover:to-morandi-blue-700 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl"
-            >
-              <Edit className="w-6 h-6" />
-              立即练习此工具
-            </Link>
+            {(tool.id === 'free-writing' || isTestPassed) ? (
+              <Link
+                href={`/write?tool=${toolId}`}
+                className="bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 text-white font-bold py-4 px-8 rounded-2xl text-lg hover:from-morandi-blue-600 hover:to-morandi-blue-700 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl"
+              >
+                <Edit className="w-6 h-6" />
+                立即练习此工具
+              </Link>
+            ) : (
+              <button
+                disabled
+                className="bg-morandi-gray-200 text-morandi-gray-500 font-bold py-4 px-8 rounded-2xl text-lg inline-flex items-center gap-3 cursor-not-allowed"
+                title="通过理解测试后解锁练习"
+              >
+                <Edit className="w-6 h-6" />
+                通过理解测试后解锁练习
+              </button>
+            )}
             <Link
               href="/"
               className="bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 text-white font-bold py-4 px-8 rounded-2xl text-lg hover:from-morandi-green-600 hover:to-morandi-green-700 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl"

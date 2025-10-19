@@ -16,7 +16,7 @@ function WriteContent() {
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [selectedTool, setSelectedTool] = useState(writingTools[0]?.id || '');
+  const [selectedTool, setSelectedTool] = useState('free-writing');
   const [topic, setTopic] = useState('');
   const [feedback, setFeedback] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -24,6 +24,13 @@ function WriteContent() {
   const [editingEssayId, setEditingEssayId] = useState<string | null>(null);
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
   const [actionItems, setActionItems] = useState<any[]>([]);
+
+  // 计算已解锁练习的工具（自由写作始终可选）
+  const availablePracticeTools = writingTools.filter(tool => {
+    if (tool.id === 'free-writing') return true;
+    const level = progress.levels.find(l => l.toolId === tool.id);
+    return !!level?.testPassed;
+  });
 
   // 从URL参数中获取预选的工具和题材
   useEffect(() => {
@@ -57,7 +64,17 @@ function WriteContent() {
     }
 
     if (toolParam && writingTools.some(tool => tool.id === toolParam)) {
-      setSelectedTool(toolParam);
+      const level = progress.levels.find(l => l.toolId === toolParam);
+      const isPracticeUnlocked = toolParam === 'free-writing' || !!level?.testPassed;
+      if (isPracticeUnlocked) {
+        setSelectedTool(toolParam);
+      } else {
+        // 如果目标工具未解锁练习，则回退到第一个可用工具
+        setSelectedTool(availablePracticeTools[0]?.id || 'free-writing');
+      }
+    } else {
+      // 未指定工具时，默认选择第一个可用工具
+      setSelectedTool(availablePracticeTools[0]?.id || 'free-writing');
     }
 
     if (topicParam) {
@@ -67,7 +84,7 @@ function WriteContent() {
         setContent(`请围绕以下主题进行写作：${decodeURIComponent(topicParam)}\n\n`);
       }
     }
-  }, [searchParams, essays]);
+  }, [searchParams, essays, progress, availablePracticeTools]);
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) {
@@ -395,10 +412,9 @@ function WriteContent() {
                 onChange={(e) => setSelectedTool(e.target.value)}
                 className="w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white shadow-sm"
               >
-                <option value="free-writing">自由写作 - 不使用特定工具</option>
-                {writingTools.map((tool) => (
+                {availablePracticeTools.map((tool) => (
                   <option key={tool.id} value={tool.id}>
-                    {tool.name} - {tool.title}
+                    {tool.id === 'free-writing' ? '自由写作 - 不使用特定工具' : `${tool.name} - ${tool.title}`}
                   </option>
                 ))}
               </select>
