@@ -8,6 +8,7 @@ import { ArrowLeft, Send, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle } f
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
+import CompositionPaper from '@/components/CompositionPaper';
 
 function WriteContent() {
   const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, updateActionItem, progress, setDailyChallenge } = useAppStore();
@@ -447,12 +448,11 @@ function WriteContent() {
                 </div>
                 作文内容
               </label>
-              <textarea
+              <CompositionPaper
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={setContent}
                 placeholder="开始你的创作吧...运用你学到的写作技巧"
-                rows={20}
-                className="w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 font-sans text-base shadow-sm"
+                className="w-full border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 shadow-sm"
               />
             </div>
           </div>
