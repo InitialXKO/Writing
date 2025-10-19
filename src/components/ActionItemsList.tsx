@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { ActionItem } from '@/types';
 import { CheckCircle, Circle } from 'lucide-react';
 

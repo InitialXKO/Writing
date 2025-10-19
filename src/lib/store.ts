@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { StudentProgress, AIConfig, Essay, EssayVersion, ActionItem, DailyChallenge, HabitTracker, WritingTool, LevelProgress } from '@/types';
+import { StudentProgress, AIConfig, Essay, EssayVersion, ActionItem, DailyChallenge, HabitTracker, WritingTool, LevelProgress, Achievement } from '@/types';
 import { writingTools } from '@/data/tools';
 
 interface AppState {
@@ -29,7 +29,10 @@ interface AppState {
   // 习惯追踪
   setDailyChallenge: (challenge: DailyChallenge) => void;
   updateHabitTracker: (tracker: Partial<HabitTracker>) => void;
-  addAchievement: (achievement: any) => void;
+  addAchievement: (achievement: Omit<Achievement, 'id' | 'earnedAt'>) => void;
+
+  // 工具掌握程度
+  updateToolMastery: (toolId: string, masteryLevel: number) => void;
 
   // 重置进度
   resetProgress: () => void;
@@ -171,6 +174,8 @@ const initialState: StudentProgress = {
   }
 };
 
+const genId = (): string => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? (crypto as any).randomUUID() : Date.now().toString());
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -278,7 +283,7 @@ export const useAppStore = create<AppState>()(
       addEssay: (essayData) => {
         const essay: Essay = {
           ...essayData,
-          id: Date.now().toString(),
+          id: genId(),
           createdAt: new Date(),
           versions: [] // 初始化版本数组
         };
@@ -328,7 +333,7 @@ export const useAppStore = create<AppState>()(
           essays: state.essays.map(essay => {
             if (essay.id === essayId) {
               const newVersion: EssayVersion = {
-                id: Date.now().toString(),
+                id: genId(),
                 content,
                 feedback,
                 createdAt: new Date(),
@@ -413,7 +418,7 @@ export const useAppStore = create<AppState>()(
         const { progress } = get();
         const newAchievement = {
           ...achievement,
-          id: Date.now().toString(),
+          id: genId(),
           earnedAt: new Date()
         };
 

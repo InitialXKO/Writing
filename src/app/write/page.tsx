@@ -12,7 +12,7 @@ import ActionItemsList from '@/components/ActionItemsList';
 import CompositionPaper from '@/components/CompositionPaper';
 
 function WriteContent() {
-  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, updateActionItem, progress, setDailyChallenge } = useAppStore();
+  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, progress, setDailyChallenge } = useAppStore();
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
