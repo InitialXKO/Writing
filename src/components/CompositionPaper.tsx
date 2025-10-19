@@ -520,40 +520,24 @@ export default function CompositionPaper({
           }
         }
 
-        // 计算需要添加的字符来填充到目标位置
-        let remainingRows = targetRow - currentRow;
-        let remainingCols = targetCol - currentCol;
+        // 采用线性单元填充算法：计算从文本末尾位置到目标网格位置需要前进的单元数
+        const currentGridIndex = currentRow * charsPerLine + currentCol;
+        const targetGridIndex = targetRow * charsPerLine + targetCol;
+        const deltaCells = Math.max(0, targetGridIndex - currentGridIndex);
 
-        // 如果列数不够，需要借位
-        if (remainingCols < 0) {
-          remainingRows--;
-          remainingCols += charsPerLine;
-        }
-
-        // 确保有足够的空格来保证输入的字出现在所点击的空格子位置
-        if (remainingRows > 0 || (remainingRows === 0 && remainingCols > 0)) {
-          // 如果需要换到后续行，并且当前行不是起始列，先补一个换行到下一行开头
-          if (currentCol > 0 && remainingRows > 0) {
-            newText += '\n';
-            currentRow++;
-            currentCol = 0;
-            remainingRows--;
+        if (deltaCells > 0) {
+          let fill = '';
+          for (let i = 0; i < deltaCells; i++) {
+            const col = (currentCol + i) % charsPerLine;
+            if (col === charsPerLine - 1) {
+              fill += '\n';
+            } else {
+              fill += ' ';
+            }
           }
-
-          // 添加必要的换行符（仅当目标在后续行时）
-          for (let i = 0; i < remainingRows; i++) {
-            newText += '\n';
-          }
-
-          // 添加必要的空格来填充到目标列（同一行向右填充时不换行）
-          for (let i = 0; i < remainingCols; i++) {
-            newText += ' ';
-          }
-
-          // 更新文本
+          newText += fill;
           onChange(newText);
-          currentText = newText; // 更新当前文本
-          // 插入位置是添加所有空白后的位置
+          currentText = newText;
           textIndex = newText.length;
         } else {
           // 目标位置在现有文本范围内，但可能没有字符占据该位置
@@ -621,8 +605,8 @@ export default function CompositionPaper({
               if (prevRow === targetRow) {
                 const missing = targetCol - prevCol;
                 if (missing > 0) {
-                  const fill = ' '.repeat(missing);
-                  newText = newText.slice(0, insertPos) + fill + newText.slice(insertPos);
+                  const fill2 = ' '.repeat(missing);
+                  newText = newText.slice(0, insertPos) + fill2 + newText.slice(insertPos);
                   onChange(newText);
                   currentText = newText;
                   textIndex = insertPos + missing;
