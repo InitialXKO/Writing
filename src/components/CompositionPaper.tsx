@@ -532,20 +532,20 @@ export default function CompositionPaper({
 
         // 确保有足够的空格来保证输入的字出现在所点击的空格子位置
         if (remainingRows > 0 || (remainingRows === 0 && remainingCols > 0)) {
-          // 如果当前列不为0且需要换行，先添加换行符
-          if (currentCol > 0 && remainingRows >= 0) {
+          // 如果需要换到后续行，并且当前行不是起始列，先补一个换行到下一行开头
+          if (currentCol > 0 && remainingRows > 0) {
             newText += '\n';
             currentRow++;
             currentCol = 0;
             remainingRows--;
           }
 
-          // 添加必要的换行符
+          // 添加必要的换行符（仅当目标在后续行时）
           for (let i = 0; i < remainingRows; i++) {
             newText += '\n';
           }
 
-          // 添加必要的空格来填充到目标列
+          // 添加必要的空格来填充到目标列（同一行向右填充时不换行）
           for (let i = 0; i < remainingCols; i++) {
             newText += ' ';
           }
