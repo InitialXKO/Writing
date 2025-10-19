@@ -452,7 +452,7 @@ function WriteContent() {
                 value={content}
                 onChange={setContent}
                 placeholder="开始你的创作吧...运用你学到的写作技巧"
-                className="w-full border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 shadow-sm"
+                className="w-full"
               />
             </div>
           </div>
