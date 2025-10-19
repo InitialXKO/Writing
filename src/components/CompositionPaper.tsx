@@ -664,19 +664,21 @@ export default function CompositionPaper({
       // 确保textIndex不会超出文本长度
       textIndex = Math.min(textIndex, currentText.length);
 
-      // 设置textarea的光标位置，防止滚动
-      textareaRef.current.focus({ preventScroll: true });
-      textareaRef.current.setSelectionRange(textIndex, textIndex);
-
-      // 设置textarea的位置到点击的格子处（只设置top，不设置left）
+      // 计算目标行的可视位置
       const rowIndex = Math.floor(gridIndex / charsPerLine);
       const gridTop = (rowIndex * (cellSize + rowGap)) + 16; // rowGap和16px是padding
-      textareaRef.current.style.top = `${gridTop}px`;
-      // 确保left保持为0，防止页面移动
-      textareaRef.current.style.left = '0';
 
-      // 高亮用户点击的格子
-      setCursorPosition(gridIndex);
+      // 推迟到下一帧设置光标与位置，避免 onChange 触发的重渲染覆盖选择位置
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus({ preventScroll: true });
+          textareaRef.current.setSelectionRange(textIndex, textIndex);
+          textareaRef.current.style.top = `${gridTop}px`;
+          textareaRef.current.style.left = '0';
+        }
+        // 高亮用户点击的格子
+        setCursorPosition(gridIndex);
+      }, 0);
     }
 
     // 恢复滚动位置
