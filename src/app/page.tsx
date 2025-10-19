@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { writingTools } from '@/data/tools';
 import { useAppStore } from '@/lib/store';
-import { Trophy, BookOpen, Settings, Play, Sparkles, Library, Calendar, Star } from 'lucide-react';
+import { canUnlockTool } from '@/lib/store'; // 导入解锁条件检查函数
+import { Trophy, BookOpen, Settings, Play, Sparkles, Library, Calendar, Star, Lock } from 'lucide-react';
 import Link from 'next/link';
 import DailyChallengeCard from '@/components/DailyChallenge';
 import AchievementCard from '@/components/AchievementCard';
@@ -188,6 +189,8 @@ export default function HomePage() {
           const level = progress.levels.find(l => l.toolId === tool.id);
           // 自由写作工具始终是已解锁的
           const isUnlocked = tool.id === 'free-writing' || progress.unlockedTools.includes(tool.id);
+          // 检查是否可以解锁（但尚未解锁）
+          const canUnlock = tool.id !== 'free-writing' && !isUnlocked && canUnlockTool(tool.id, progress, writingTools);
 
           return (
             <div
@@ -244,6 +247,30 @@ export default function HomePage() {
                   <span className="flex items-center gap-1">✅ {tool.suitableFor}</span>
                   <span className="flex items-center gap-1">⚠️ {tool.caution}</span>
                 </div>
+
+                {/* 解锁条件简要显示 */}
+                {!isUnlocked && tool.id !== 'free-writing' && tool.unlockConditions && (
+                  <div className="text-xs bg-morandi-purple-50 border border-morandi-purple-200 rounded-lg p-2">
+                    <div className="font-medium text-morandi-purple-700 mb-1 flex items-center gap-1">
+                      <Lock className="w-3 h-3" />
+                      解锁条件：
+                    </div>
+                    <div className="space-y-1 text-morandi-purple-600">
+                      {tool.unlockConditions.prerequisiteTools && (
+                        <div>前置: {tool.unlockConditions.prerequisiteTools.length}个工具</div>
+                      )}
+                      {tool.unlockConditions.minMasteryLevel && (
+                        <div>掌握: ≥{tool.unlockConditions.minMasteryLevel}%</div>
+                      )}
+                      {tool.unlockConditions.minPracticeCount && (
+                        <div>练习: ≥{tool.unlockConditions.minPracticeCount}次</div>
+                      )}
+                      {tool.unlockConditions.minWritingStreak && (
+                        <div>连续: ≥{tool.unlockConditions.minWritingStreak}天</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="mt-auto pt-4 flex-shrink-0">
@@ -254,6 +281,14 @@ export default function HomePage() {
                   >
                     {level?.completed ? '再次学习' : '开始学习'}
                     <Play className="w-4 h-4" />
+                  </Link>
+                ) : canUnlock ? (
+                  <Link
+                    href={`/tools/${tool.id}`}
+                    className="w-full bg-gradient-to-r from-morandi-yellow-500 to-morandi-orange-600 hover:from-morandi-yellow-600 hover:to-morandi-orange-700 text-white font-medium py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                  >
+                    可以解锁
+                    <Lock className="w-4 h-4" />
                   </Link>
                 ) : (
                   <button

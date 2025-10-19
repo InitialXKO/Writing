@@ -29,7 +29,9 @@ export const writingTools: WritingTool[] = [
       ],
       correctAnswer: 1,
       explanation: '第二句通过仔细观察，发现了同桌文具盒里的具体细节，体现了"观察者之眼"的技巧'
-    }
+    },
+    // 第一个工具无解锁条件
+    unlockConditions: {}
   },
   {
     id: 'tool-1',
@@ -59,6 +61,11 @@ export const writingTools: WritingTool[] = [
       ],
       correctAnswer: 1,
       explanation: '第二句用具体动作（弹起来、举过头顶）代替了抽象形容词（很高兴），体现了"具体化"技巧'
+    },
+    unlockConditions: {
+      prerequisiteTools: ['tool-0'], // 需要先掌握观察者之眼
+      minMasteryLevel: 60, // 观察者之眼掌握程度至少60%
+      minPracticeCount: 2 // 至少完成2次练习
     }
   },
   {
@@ -89,6 +96,12 @@ export const writingTools: WritingTool[] = [
       ],
       correctAnswer: 1,
       explanation: '第二句将一个瞬间的动作（接过接力棒）放大成一段详细描写，体现了"慢镜头"技巧'
+    },
+    unlockConditions: {
+      prerequisiteTools: ['tool-0', 'tool-1'], // 需要先掌握观察者之眼和具体化
+      minMasteryLevel: 70, // 前两个工具掌握程度至少70%
+      minPracticeCount: 3, // 至少完成3次练习
+      minWritingStreak: 3 // 连续写作至少3天
     }
   },
   {
@@ -119,6 +132,12 @@ export const writingTools: WritingTool[] = [
       ],
       correctAnswer: 1,
       explanation: '第二句运用了视觉、听觉、嗅觉三种感官描写，体现了"五感法"技巧'
+    },
+    unlockConditions: {
+      prerequisiteTools: ['tool-0', 'tool-1', 'tool-2'], // 需要先掌握前三个工具
+      minMasteryLevel: 75, // 前三个工具掌握程度至少75%
+      minPracticeCount: 4, // 至少完成4次练习
+      minWritingStreak: 5 // 连续写作至少5天
     }
   },
   {
@@ -149,6 +168,12 @@ export const writingTools: WritingTool[] = [
       ],
       correctAnswer: 1,
       explanation: '第二句通过对比"别人"和"他"的行为，突出了他的认真特点，体现了"对比法"技巧'
+    },
+    unlockConditions: {
+      prerequisiteTools: ['tool-0', 'tool-1', 'tool-2', 'tool-3'], // 需要先掌握前四个工具
+      minMasteryLevel: 80, // 前四个工具掌握程度至少80%
+      minPracticeCount: 5, // 至少完成5次练习
+      minWritingStreak: 7 // 连续写作至少7天
     }
   },
   {
@@ -179,6 +204,12 @@ export const writingTools: WritingTool[] = [
       ],
       correctAnswer: 1,
       explanation: '第二句从表面现象挖掘出深层意义，体现了"深度挖掘"技巧'
+    },
+    unlockConditions: {
+      prerequisiteTools: ['tool-0', 'tool-1', 'tool-2', 'tool-3', 'tool-4'], // 需要先掌握前五个工具
+      minMasteryLevel: 85, // 前五个工具掌握程度至少85%
+      minPracticeCount: 6, // 至少完成6次练习
+      minWritingStreak: 10 // 连续写作至少10天
     }
   },
   {
@@ -209,6 +240,12 @@ export const writingTools: WritingTool[] = [
       ],
       correctAnswer: 1,
       explanation: '第二句通过长短句的变化制造了节奏感，体现了"节奏感"技巧'
+    },
+    unlockConditions: {
+      prerequisiteTools: ['tool-0', 'tool-1', 'tool-2', 'tool-3', 'tool-4', 'tool-5'], // 需要先掌握前六个工具
+      minMasteryLevel: 90, // 前六个工具掌握程度至少90%
+      minPracticeCount: 7, // 至少完成7次练习
+      minWritingStreak: 14 // 连续写作至少14天
     }
   },
   {
@@ -240,6 +277,8 @@ export const writingTools: WritingTool[] = [
       ],
       correctAnswer: 1,
       explanation: '自由写作的核心理念是当一个"诚实的记录者"，记录自己的生活、感受和视角。'
-    }
+    },
+    // 自由写作无解锁条件，始终可用
+    unlockConditions: {}
   }
 ];

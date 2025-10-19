@@ -23,6 +23,17 @@ export interface WritingTool {
   exercises: string[];
   // 新增理解测试
   comprehensionTest?: ComprehensionTest;
+  // 新增解锁条件
+  unlockConditions?: {
+    // 前置工具要求
+    prerequisiteTools?: string[];
+    // 最低掌握程度要求
+    minMasteryLevel?: number;
+    // 最少练习次数要求
+    minPracticeCount?: number;
+    // 连续写作天数要求
+    minWritingStreak?: number;
+  };
 }
 
 // 关卡进度
@@ -34,6 +45,10 @@ export interface LevelProgress {
   exercisesCompleted: number;
   // 新增测试通过状态
   testPassed?: boolean;
+  // 新增练习完成次数
+  practiceCount?: number;
+  // 新增掌握程度 (0-100)
+  masteryLevel?: number;
 }
 
 // 每日挑战

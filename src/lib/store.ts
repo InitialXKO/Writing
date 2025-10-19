@@ -34,6 +34,66 @@ interface AppState {
   resetProgress: () => void;
 }
 
+// 检查工具是否可以解锁的辅助函数
+export const canUnlockTool = (toolId: string, progress: StudentProgress, tools: WritingTool[]): boolean => {
+  // 自由写作始终可用
+  if (toolId === 'free-writing') return true;
+
+  const tool = tools.find(t => t.id === toolId);
+  if (!tool || !tool.unlockConditions) return true;
+
+  const conditions = tool.unlockConditions;
+
+  // 检查前置工具要求
+  if (conditions.prerequisiteTools) {
+    for (const prereqId of conditions.prerequisiteTools) {
+      const prereqLevel = progress.levels.find(l => l.toolId === prereqId);
+      if (!prereqLevel || !prereqLevel.testPassed) {
+        return false;
+      }
+    }
+  }
+
+  // 检查掌握程度要求
+  if (conditions.minMasteryLevel && conditions.prerequisiteTools) {
+    const prereqLevels = conditions.prerequisiteTools.map(id =>
+      progress.levels.find(l => l.toolId === id)
+    ).filter(Boolean) as LevelProgress[];
+
+    if (prereqLevels.length > 0) {
+      const avgMastery = prereqLevels.reduce((sum, level) =>
+        sum + (level.masteryLevel || 0), 0) / prereqLevels.length;
+      if (avgMastery < conditions.minMasteryLevel) {
+        return false;
+      }
+    }
+  }
+
+  // 检查练习次数要求
+  if (conditions.minPracticeCount && conditions.prerequisiteTools) {
+    const prereqLevels = conditions.prerequisiteTools.map(id =>
+      progress.levels.find(l => l.toolId === id)
+    ).filter(Boolean) as LevelProgress[];
+
+    if (prereqLevels.length > 0) {
+      const totalPractices = prereqLevels.reduce((sum, level) =>
+        sum + (level.practiceCount || 0), 0);
+      if (totalPractices < conditions.minPracticeCount) {
+        return false;
+      }
+    }
+  }
+
+  // 检查连续写作天数要求
+  if (conditions.minWritingStreak) {
+    if ((progress.habitTracker?.writingStreak || 0) < conditions.minWritingStreak) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 // 生成行动项的辅助函数
 export const generateActionItems = (feedback: string): ActionItem[] => {
   // 简单的行动项生成逻辑，实际应用中可以更复杂
@@ -92,6 +152,8 @@ const initialState: StudentProgress = {
     score: 0,
     exercisesCompleted: 0,
     testPassed: false,
+    practiceCount: 0, // 初始化练习次数
+    masteryLevel: 0, // 初始化掌握程度
   })),
   totalScore: 0,
   unlockedTools: ['tool-0'], // 默认解锁第一个工具
@@ -135,9 +197,14 @@ export const useAppStore = create<AppState>()(
 
         const unlockedTools = [...progress.unlockedTools];
         const currentIndex = writingTools.findIndex(tool => tool.id === toolId);
-        if (currentIndex < writingTools.length - 1) {
-          const nextToolId = writingTools[currentIndex + 1].id;
-          if (!unlockedTools.includes(nextToolId)) {
+
+        // 更新当前关卡
+        const newCurrentLevel = Math.max(progress.currentLevel, currentIndex + 1);
+
+        // 检查是否可以解锁后续工具
+        for (let i = currentIndex + 1; i < writingTools.length; i++) {
+          const nextToolId = writingTools[i].id;
+          if (!unlockedTools.includes(nextToolId) && canUnlockTool(nextToolId, {...progress, levels: updatedLevels}, writingTools)) {
             unlockedTools.push(nextToolId);
           }
         }
@@ -148,7 +215,7 @@ export const useAppStore = create<AppState>()(
             levels: updatedLevels,
             totalScore: updatedLevels.reduce((sum, level) => sum + (level.score || 0), 0),
             unlockedTools,
-            currentLevel: Math.max(progress.currentLevel, currentIndex + 1)
+            currentLevel: newCurrentLevel
           }
         });
       },
@@ -179,12 +246,14 @@ export const useAppStore = create<AppState>()(
             : level
         );
 
-        // 检查是否可以解锁下一个工具
+        // 检查是否可以解锁后续工具
         const currentIndex = writingTools.findIndex(tool => tool.id === toolId);
         const unlockedTools = [...progress.unlockedTools];
-        if (currentIndex < writingTools.length - 1) {
-          const nextToolId = writingTools[currentIndex + 1].id;
-          if (!unlockedTools.includes(nextToolId)) {
+
+        // 检查是否可以解锁后续工具
+        for (let i = currentIndex + 1; i < writingTools.length; i++) {
+          const nextToolId = writingTools[i].id;
+          if (!unlockedTools.includes(nextToolId) && canUnlockTool(nextToolId, {...progress, levels: updatedLevels}, writingTools)) {
             unlockedTools.push(nextToolId);
           }
         }
@@ -212,7 +281,30 @@ export const useAppStore = create<AppState>()(
           createdAt: new Date(),
           versions: [] // 初始化版本数组
         };
-        set(state => ({ essays: [...state.essays, essay] }));
+        set(state => {
+          // 增加相关工具的练习次数
+          const toolId = essayData.toolUsed;
+          const updatedLevels = state.progress.levels.map(level => {
+            if (level.toolId === toolId) {
+              // 简单的掌握程度更新逻辑：每次练习增加10%，最多到100%
+              const newMasteryLevel = Math.min(100, (level.masteryLevel || 0) + 10);
+              return {
+                ...level,
+                practiceCount: (level.practiceCount || 0) + 1,
+                masteryLevel: newMasteryLevel
+              };
+            }
+            return level;
+          });
+
+          return {
+            essays: [...state.essays, essay],
+            progress: {
+              ...state.progress,
+              levels: updatedLevels
+            }
+          };
+        });
       },
 
       updateEssay: (id, updates) => {
@@ -332,6 +424,26 @@ export const useAppStore = create<AppState>()(
                 newAchievement
               ]
             }
+          }
+        });
+      },
+
+      // 更新工具掌握程度
+      updateToolMastery: (toolId: string, masteryLevel: number) => {
+        const { progress } = get();
+        const updatedLevels = progress.levels.map(level =>
+          level.toolId === toolId
+            ? {
+                ...level,
+                masteryLevel: Math.min(100, Math.max(0, masteryLevel)) // 限制在0-100之间
+              }
+            : level
+        );
+
+        set({
+          progress: {
+            ...progress,
+            levels: updatedLevels
           }
         });
       },
