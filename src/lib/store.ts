@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { StudentProgress, AIConfig, Essay, EssayVersion, ActionItem, DailyChallenge, HabitTracker } from '@/types';
+import { StudentProgress, AIConfig, Essay, EssayVersion, ActionItem, DailyChallenge, HabitTracker, WritingTool, LevelProgress } from '@/types';
 import { writingTools } from '@/data/tools';
 
 interface AppState {
