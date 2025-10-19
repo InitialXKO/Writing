@@ -24,11 +24,12 @@ export const writingTools: WritingTool[] = [
     comprehensionTest: {
       question: '以下哪句运用了"观察者之眼"技巧？',
       options: [
-        '教室里很热闹',
-        '同桌的铅笔盒里，橡皮被咬得坑坑洼洼；他课桌上的数学书边角已经卷起，却被透明胶带仔细地粘好了'
+        '操场上很热闹，同学们跑来跑去，大家都在活动。',
+        '饮水机旁的水沿着地砖缝一点点摊开，阳光一照，亮起一条细细的银线。',
+        '放学后我们在操场玩得很开心。'
       ],
       correctAnswer: 1,
-      explanation: '第二句通过仔细观察，抓住了铅笔盒和数学书上的细节，体现了"观察者之眼"的技巧'
+      explanation: '第二句捕捉到“地砖缝”“细细的银线”等具体细节，是用心观察后的发现，体现了“观察者之眼”。'
     },
     // 第一个工具无解锁条件
     unlockConditions: {}
@@ -56,11 +57,12 @@ export const writingTools: WritingTool[] = [
     comprehensionTest: {
       question: '以下哪句运用了"具体化"技巧？',
       options: [
-        '他很高兴',
-        '他猛地从座位上弹起来，把试卷高高举过头顶，像一面胜利的旗帜'
+        '他很紧张，心里像有小鹿乱撞。',
+        '他攥着衣角，喉结上下滚动，鞋尖在地板上轻轻点了三下。',
+        '他非常紧张，非常非常紧张。'
       ],
       correctAnswer: 1,
-      explanation: '第二句用具体动作（弹起来、举过头顶）代替了抽象形容词（很高兴），体现了"具体化"技巧'
+      explanation: '第二句用“攥着衣角”“喉结上下滚动”“鞋尖点三下”等具体动作替代抽象形容，体现了“具体化”。'
     },
     unlockConditions: {
       prerequisiteTools: ['tool-0'], // 需要先掌握观察者之眼
@@ -91,11 +93,12 @@ export const writingTools: WritingTool[] = [
     comprehensionTest: {
       question: '以下哪句运用了"慢镜头"技巧？',
       options: [
-        '我接过了接力棒',
-        '我颤抖着伸手，指尖刚碰到冰凉的接力棒——就是现在！——我猛地握紧，感觉全身的血液都冲向了双腿，像离弦的箭一样冲了出去'
+        '我接过接力棒，开始冲刺。',
+        '指尖碰到冰凉的金属，我先收、再握紧，脚下一沉，身体像被弹簧推了一把。',
+        '我接过接力棒，接着马上往前跑，速度越来越快。'
       ],
       correctAnswer: 1,
-      explanation: '第二句将一个瞬间的动作（接过接力棒）放大成一段详细描写，体现了"慢镜头"技巧'
+      explanation: '第二句把一个瞬间拆成“先收”“再握紧”“脚下一沉”等连续微动作，并加入感受，体现了“慢镜头”。'
     },
     unlockConditions: {
       prerequisiteTools: ['tool-0', 'tool-1'], // 需要先掌握观察者之眼和具体化
@@ -127,11 +130,12 @@ export const writingTools: WritingTool[] = [
     comprehensionTest: {
       question: '以下哪句运用了"五感法"技巧？',
       options: [
-        '教室里很安静',
-        '午后的阳光透过窗帘缝隙，在桌面投下斑驳的光影（视觉）。只有笔尖划过纸张的沙沙声（听觉），偶尔传来远处操场的哨声（听觉）。空气中飘着淡淡的粉笔灰味道（嗅觉）'
+        '教室里很安静，大家都在认真学习。',
+        '窗外潮湿的风带着泥土味钻进来，粉笔灰在斑驳的光里打着旋儿，走廊尽头传来一声闷闷的铃响。',
+        '大家今天都很专心。'
       ],
       correctAnswer: 1,
-      explanation: '第二句运用了视觉、听觉、嗅觉三种感官描写，体现了"五感法"技巧'
+      explanation: '第二句结合嗅觉（泥土味）、视觉（粉笔灰在光里）、听觉（铃响），多感官共同营造氛围，体现了“五感法”。'
     },
     unlockConditions: {
       prerequisiteTools: ['tool-0', 'tool-1', 'tool-2'], // 需要先掌握前三个工具
@@ -163,11 +167,12 @@ export const writingTools: WritingTool[] = [
     comprehensionTest: {
       question: '以下哪句运用了"对比法"技巧？',
       options: [
-        '他很认真',
-        '当别人在追逐打闹时，他正埋头计算着复杂的数学题；当大家在讨论最新的游戏时，他却在琢磨那道困扰了他三天的应用题'
+        '他很认真，做事一丝不苟。',
+        '同桌在聊新游戏，他却把演算纸摊开，一行行核对刚才的步骤。',
+        '他认真地写作业。'
       ],
       correctAnswer: 1,
-      explanation: '第二句通过对比"别人"和"他"的行为，突出了他的认真特点，体现了"对比法"技巧'
+      explanation: '第二句把“同桌在聊新游戏”和“他核对步骤”并置，通过对比他人与他本人的行为，突出“认真”的特点。'
     },
     unlockConditions: {
       prerequisiteTools: ['tool-0', 'tool-1', 'tool-2', 'tool-3'], // 需要先掌握前四个工具
@@ -199,11 +204,12 @@ export const writingTools: WritingTool[] = [
     comprehensionTest: {
       question: '以下哪句运用了"深度挖掘"技巧？',
       options: [
-        '我懂得了友谊的珍贵',
-        '原来，真正的友谊不是形影不离，而是在你需要时，有人愿意为你停留五分钟'
+        '我懂得了要珍惜时间和友谊。',
+        '他没有替我解题，只把笔递过来说“你再试一次”，那一刻我明白：真正的帮助，是把选择权还给我。',
+        '这件事让我很感动。'
       ],
       correctAnswer: 1,
-      explanation: '第二句从表面现象挖掘出深层意义，体现了"深度挖掘"技巧'
+      explanation: '第二句从具体经历中得出“把选择权还给我”的更深理解，而非空泛总结，体现了“深度挖掘”。'
     },
     unlockConditions: {
       prerequisiteTools: ['tool-0', 'tool-1', 'tool-2', 'tool-3', 'tool-4'], // 需要先掌握前五个工具
@@ -235,11 +241,12 @@ export const writingTools: WritingTool[] = [
     comprehensionTest: {
       question: '以下哪句运用了"节奏感"技巧？',
       options: [
-        '我很紧张。我走上台。我开始讲话。',
-        '我紧张极了。深吸一口气，迈开沉重的步伐走上台，在全场目光的注视下——开始！'
+        '我很紧张。我走上台。开始讲话。',
+        '灯光烫得我眯起眼。我吸气，停半拍；抬头——迈步，站定：“各位好。”',
+        '我很紧张然后我走上台然后我开始讲话然后我继续讲。'
       ],
       correctAnswer: 1,
-      explanation: '第二句通过长短句的变化制造了节奏感，体现了"节奏感"技巧'
+      explanation: '第二句通过长短句交替与停顿（停半拍、破折号），形成有呼吸的节奏，体现了“节奏感”。'
     },
     unlockConditions: {
       prerequisiteTools: ['tool-0', 'tool-1', 'tool-2', 'tool-3', 'tool-4', 'tool-5'], // 需要先掌握前六个工具
