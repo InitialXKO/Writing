@@ -26,41 +26,173 @@ export default function CompositionPaper({
   const cellSize = 36;  // 每个格子的大小（正方形）- 增加到1.5倍
   const rowGap = 12;  // 横排之间的间隔 - 增加到1.5倍
 
-  // 将文本转换为字符数组，处理emoji等多字节字符
-  const characters = useMemo(() => Array.from(value), [value]);
+  // 将文本转换为字符数组，处理英文两个字母占一格的逻辑
+  const characters = useMemo(() => {
+    const chars = Array.from(value);
+    const result = [];
+    let i = 0;
+
+    while (i < chars.length) {
+      const char = chars[i];
+      // 检查是否是英文字符（字母或数字）
+      if (/[a-zA-Z0-9]/.test(char)) {
+        // 检查下一个字符是否也是英文字符
+        if (i + 1 < chars.length && /[a-zA-Z0-9]/.test(chars[i + 1])) {
+          // 英文两个字母占一格，不添加空格
+          result.push(char + chars[i + 1]);
+          i += 2;
+        } else {
+          // 单个英文字母占一格
+          result.push(char);
+          i += 1;
+        }
+      } else {
+        // 中文字符或其他符号占一格
+        result.push(char);
+        i += 1;
+      }
+    }
+
+    return result;
+  }, [value]);
 
   // 处理输入变化
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onChange(e.target.value);
-    // 更新光标位置
-    const position = e.target.selectionStart || 0;
-    setCursorPosition(position);
+    // 更新光标位置，需要转换为网格位置
+    const textPosition = e.target.selectionStart || 0;
+
+    // 将textarea中的字符位置转换为网格位置
+    let gridPosition = 0;
+    let currentTextIndex = 0;
+    for (let i = 0; i < characters.length && currentTextIndex < textPosition; i++) {
+      const char = characters[i];
+      // 检查是否是两个连续的字母数字字符
+      if (/^[a-zA-Z0-9]{2}$/.test(char)) {
+        // 两个字母占一格
+        if (currentTextIndex + 2 <= textPosition) {
+          gridPosition += 1;
+          currentTextIndex += 2;
+        } else {
+          break;
+        }
+      } else {
+        // 单个字符占一格（包括单个字母和其他字符）
+        if (currentTextIndex + 1 <= textPosition) {
+          gridPosition += 1;
+          currentTextIndex += 1;
+        } else {
+          break;
+        }
+      }
+    }
+
+    // 设置textarea的位置到光标所在的格子处（只设置top，不设置left）
+    if (textareaRef.current && containerRef.current) {
+      const rowIndex = Math.floor(gridPosition / charsPerLine);
+      const gridTop = (rowIndex * (cellSize + 10)) + 16; // 10px是rowGap，16px是padding
+      textareaRef.current.style.top = `${gridTop}px`;
+      // 确保left保持为0，防止页面移动
+      textareaRef.current.style.left = '0';
+    }
+
+    setCursorPosition(gridPosition);
   };
 
   // 处理光标位置变化
   const handleSelectionChange = () => {
     if (textareaRef.current) {
-      const position = textareaRef.current.selectionStart || 0;
-      setCursorPosition(position);
+      const textPosition = textareaRef.current.selectionStart || 0;
+
+      // 将textarea中的字符位置转换为网格位置
+      let gridPosition = 0;
+      let currentTextIndex = 0;
+      for (let i = 0; i < characters.length && currentTextIndex < textPosition; i++) {
+        const char = characters[i];
+        // 检查是否是两个连续的字母数字字符
+        if (/^[a-zA-Z0-9]{2}$/.test(char)) {
+          // 两个字母占一格
+          if (currentTextIndex + 2 <= textPosition) {
+            gridPosition += 1;
+            currentTextIndex += 2;
+          } else {
+            break;
+          }
+        } else {
+          // 单个字符占一格（包括单个字母和其他字符）
+          if (currentTextIndex + 1 <= textPosition) {
+            gridPosition += 1;
+            currentTextIndex += 1;
+          } else {
+            break;
+          }
+        }
+      }
+
+      // 设置textarea的位置到光标所在的格子处（只设置top，不设置left）
+      if (textareaRef.current && containerRef.current) {
+        const rowIndex = Math.floor(gridPosition / charsPerLine);
+        const gridTop = (rowIndex * (cellSize + 10)) + 16; // 10px是rowGap，16px是padding
+        textareaRef.current.style.top = `${gridTop}px`;
+        // 确保left保持为0，防止页面移动
+        textareaRef.current.style.left = '0';
+      }
+
+      setCursorPosition(gridPosition);
     }
   };
 
   // 处理格子点击事件
-  const handleGridClick = (index: number) => {
-    if (textareaRef.current) {
+  const handleGridClick = (gridIndex: number) => {
+    // 保存当前滚动位置
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+
+    if (textareaRef.current && containerRef.current) {
+      // 计算textarea中对应的字符位置
+      let textIndex = 0;
+      for (let i = 0; i < gridIndex; i++) {
+        // 如果超出了当前字符数组的范围，需要扩展文本
+        if (i >= characters.length) {
+          textIndex += 1;
+        } else {
+          // 检查是否是两个连续的字母数字字符
+          const char = characters[i];
+          if (/^[a-zA-Z0-9]{2}$/.test(char)) {
+            // 两个字母占一格
+            textIndex += 2;
+          } else {
+            // 单个字符占一格（包括单个字母和其他字符）
+            textIndex += 1;
+          }
+        }
+      }
+
       // 如果点击的位置超出了当前文本长度，需要扩展文本
-      if (index > value.length) {
+      if (textIndex > value.length) {
         // 创建足够长度的文本，用空格填充
-        const newText = value.padEnd(index, ' ');
+        const newText = value.padEnd(textIndex, ' ');
         onChange(newText);
       }
 
-      // 设置textarea的光标位置
-      textareaRef.current.focus();
-      textareaRef.current.setSelectionRange(index, index);
+      // 设置textarea的光标位置，防止滚动
+      textareaRef.current.focus({ preventScroll: true });
+      textareaRef.current.setSelectionRange(textIndex, textIndex);
+
+      // 设置textarea的位置到点击的格子处（只设置top，不设置left）
+      // 在高亮代码内部设置位置
+      const rowIndex = Math.floor(gridIndex / charsPerLine);
+      const gridTop = (rowIndex * (cellSize + 10)) + 16; // 10px是rowGap，16px是padding
+      textareaRef.current.style.top = `${gridTop}px`;
+      // 确保left保持为0，防止页面移动
+      textareaRef.current.style.left = '0';
+
       // 直接高亮用户点击的格子，确保不受其他事件影响
-      setCursorPosition(index);
+      setCursorPosition(gridIndex);
     }
+
+    // 恢复滚动位置
+    window.scrollTo(scrollX, scrollY);
   };
 
   // 获取实际用于高亮的光标位置
@@ -79,8 +211,11 @@ export default function CompositionPaper({
       {/* 稿纸容器 */}
       <div
         ref={containerRef}
-        className="border border-gray-300 rounded-xl bg-amber-50 overflow-hidden relative"
-        style={{ height: '900px' }}  // 增加到1.5倍
+        className="border border-gray-300 rounded-xl bg-amber-100 overflow-hidden relative"
+        style={{
+          minHeight: '900px',  // 最小高度为原来的1.5倍
+          height: `${Math.max(900, Math.ceil(Math.max(charsPerLine * linesPerPage, characters.length + charsPerLine * 5) / 100) * 100 / charsPerLine * (cellSize + 10) + 32)}px`  // 根据格子数动态计算高度
+        }}
         role="img"
         aria-label="作文稿纸背景"
       >
@@ -90,13 +225,13 @@ export default function CompositionPaper({
           style={{
             display: 'grid',
             gridTemplateColumns: `repeat(${charsPerLine}, 1fr)`,
-            gridTemplateRows: `repeat(${linesPerPage}, ${cellSize}px)`,
+            gridTemplateRows: `repeat(${Math.ceil(Math.max(linesPerPage, Math.ceil(characters.length / charsPerLine) + 5) / 100) * 100 / charsPerLine}, ${cellSize}px)`, // 格子数总是100的倍数
             padding: '1rem',
-            columnGap: '0',
-            rowGap: `${rowGap}px`,
+            columnGap: '0',  // 移除列间距
+            rowGap: '10px',  // 添加行间距来创建白色间距
           }}
         >
-          {Array.from({ length: charsPerLine * linesPerPage }).map((_, index) => {
+          {Array.from({ length: Math.ceil(Math.max(charsPerLine * linesPerPage, characters.length + charsPerLine * 5) / 100) * 100 }).map((_, index) => {
             const rowIndex = Math.floor(index / charsPerLine);
             const colIndex = index % charsPerLine;
             const isHundredMark = (index + 1) % 100 === 0;
@@ -111,13 +246,24 @@ export default function CompositionPaper({
               <div
                 key={index}
                 className={`
-                  border border-gray-400 flex items-center justify-center relative
-                  ${isHundredMark ? 'border-r-2 border-gray-400' : ''}
-                  ${isLineStart ? 'border-l-2 border-gray-400' : ''}
-                  ${isCursorAtPosition ? 'bg-blue-100 animate-pulse' : ''}
+                  flex items-center justify-center relative
+                  ${isCursorAtPosition ? 'bg-amber-200 border-2 border-amber-400 shadow-md animate-pulse scale-105' : 'bg-white'}
                 `}
-                onClick={() => handleGridClick(index)}
-                style={{ cursor: 'pointer' }}
+                style={{
+                  cursor: 'pointer',
+                  borderTop: '1px solid #d97706', // 上边框
+                  borderBottom: '1px solid #d97706', // 下边框
+                  borderRight: '1px solid #d97706', // 右边框
+                  ...(isLineStart && { borderLeft: '1px solid #d97706' }), // 每行起始格子的左边框
+                  height: `${cellSize}px`, // 恢复原始高度
+                  boxSizing: 'border-box', // 使用border-box来包含边框和padding
+                  backgroundColor: 'white', // 确保背景色为白色
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleGridClick(index);
+                }}
               >
                 {/* 字符显示 */}
                 {char && (
@@ -125,7 +271,15 @@ export default function CompositionPaper({
                     className="text-xl leading-none"
                     style={{
                       fontFamily: "'仿宋', 'FangSong', serif",
-                      color: '#333'
+                      color: '#333',
+                      // 如果是单个英文字母，添加左对齐样式
+                      ...( /^[a-zA-Z0-9]$/.test(char) && {
+                        transform: 'translateX(-8px)'
+                      }),
+                      // 如果是双字母字符，添加letter-spacing使其均匀分布
+                      ...( /^[a-zA-Z0-9]{2}$/.test(char) && {
+                        letterSpacing: '6px'
+                      })
                     }}
                   >
                     {char}
@@ -133,8 +287,8 @@ export default function CompositionPaper({
                 )}
 
                 {/* 每百字标记 */}
-                {isHundredMark && rowIndex === 0 && (
-                  <div className="absolute -top-6 right-0 text-xs text-blue-600 font-bold bg-white px-1 rounded shadow">
+                {isHundredMark && (
+                  <div className="absolute bottom-0 right-0 text-[0.6rem] text-blue-600 font-bold bg-white px-0.5 rounded shadow transform translate-y-1/2 translate-x-1/2">
                     {index + 1}
                   </div>
                 )}
@@ -153,7 +307,7 @@ export default function CompositionPaper({
           onKeyUp={handleSelectionChange}
           onSelect={handleSelectionChange}
           className={`
-            absolute inset-0 w-full h-full bg-transparent resize-none focus:outline-none
+            absolute bg-transparent resize-none focus:outline-none
             text-transparent caret-transparent z-10
           `}
           style={{
@@ -167,6 +321,16 @@ export default function CompositionPaper({
             resize: 'none',
             overflow: 'hidden',
             pointerEvents: 'none',  // 完全不响应鼠标事件
+            height: '0',  // 设为零高度，完全不可见
+            opacity: '0',  // 完全透明
+            zIndex: '-1',  // 确保在最底层
+            top: '0',
+            left: '0',
+            width: '70%', // 横向变窄为70%
+            // 防止页面移动的额外样式
+            position: 'absolute',
+            margin: '0',
+            transform: 'translateZ(0)', // 防止页面移动的硬件加速
           }}
           aria-label="作文输入区域"
           tabIndex={-1}
@@ -175,7 +339,7 @@ export default function CompositionPaper({
 
       {/* 字符计数显示 */}
       <div className="absolute top-2 right-2 text-xs text-gray-600 bg-white/90 px-2 py-1 rounded shadow" aria-live="polite">
-        {characters.length} 字
+        {value.trimEnd().length} 字
       </div>
     </div>
   );
