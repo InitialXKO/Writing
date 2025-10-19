@@ -36,8 +36,8 @@ export default function FeedbackModal({ isOpen, onClose, content, feedback, acti
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 p-4 bg-black/50 backdrop-blur-sm overflow-y-auto md:flex md:items-center md:justify-center">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-none md:max-h-[90vh] overflow-hidden flex flex-col mx-auto">
         {/* 头部 */}
         <div className="flex items-center justify-between p-6 border-b border-morandi-gray-200">
           <h2 className="text-2xl font-bold text-morandi-gray-800">AI批改反馈</h2>
@@ -76,7 +76,7 @@ export default function FeedbackModal({ isOpen, onClose, content, feedback, acti
               </h3>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
-              <div className="text-morandi-gray-700 whitespace-pre-wrap mb-6">
+              <div className="text-morandi-gray-700 whitespace-pre-wrap break-words mb-6">
                 {feedback || '暂无批改意见'}
               </div>
 
