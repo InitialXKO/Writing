@@ -141,7 +141,7 @@ export const writingTools: WritingTool[] = [
       prerequisiteTools: ['tool-0', 'tool-1', 'tool-2'], // 需要先掌握前三个工具
       minMasteryLevel: 65, // 前三个工具掌握程度至少65%
       minPracticeCount: 3, // 至少完成3次练习
-      minWritingStreak: 4 // 连续写作至少4天
+      minWritingStreak: 3 // 连续写作至少3天
     }
   },
   {
@@ -178,7 +178,7 @@ export const writingTools: WritingTool[] = [
       prerequisiteTools: ['tool-0', 'tool-1', 'tool-2', 'tool-3'], // 需要先掌握前四个工具
       minMasteryLevel: 70, // 前四个工具掌握程度至少70%
       minPracticeCount: 4, // 至少完成4次练习
-      minWritingStreak: 5 // 连续写作至少5天
+      minWritingStreak: 4 // 连续写作至少4天
     }
   },
   {
@@ -215,7 +215,7 @@ export const writingTools: WritingTool[] = [
       prerequisiteTools: ['tool-0', 'tool-1', 'tool-2', 'tool-3', 'tool-4'], // 需要先掌握前五个工具
       minMasteryLevel: 75, // 前五个工具掌握程度至少75%
       minPracticeCount: 5, // 至少完成5次练习
-      minWritingStreak: 7 // 连续写作至少7天
+      minWritingStreak: 5 // 连续写作至少5天
     }
   },
   {
@@ -252,7 +252,7 @@ export const writingTools: WritingTool[] = [
       prerequisiteTools: ['tool-0', 'tool-1', 'tool-2', 'tool-3', 'tool-4', 'tool-5'], // 需要先掌握前六个工具
       minMasteryLevel: 80, // 前六个工具掌握程度至少80%
       minPracticeCount: 6, // 至少完成6次练习
-      minWritingStreak: 10 // 连续写作至少10天
+      minWritingStreak: 6 // 连续写作至少6天
     }
   },
   {
