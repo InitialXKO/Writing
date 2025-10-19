@@ -562,17 +562,23 @@ export default function CompositionPaper({
           currentRow = 0;
           currentCol = 0;
           let foundPosition = false;
+          let prevRow = 0;
+          let prevCol = 0;
 
           // 遍历现有文本，找到目标位置
           for (let i = 0; i < newText.length; i++) {
-            // 检查是否到达目标位置
+            // 如果刚好到达目标位置
             if (currentRow === targetRow && currentCol === targetCol) {
               insertPos = i;
               foundPosition = true;
+              textIndex = insertPos;
               break;
             }
 
             const char = newText[i];
+            prevRow = currentRow;
+            prevCol = currentCol;
+
             if (char === '\n') {
               currentRow++;
               currentCol = 0;
@@ -610,22 +616,35 @@ export default function CompositionPaper({
             if (currentRow > targetRow || (currentRow === targetRow && currentCol > targetCol)) {
               insertPos = i;
               foundPosition = true;
+
+              // 如果越界发生在目标行（多半是遇到该行的换行符），在换行符前补足空格
+              if (prevRow === targetRow) {
+                const missing = targetCol - prevCol;
+                if (missing > 0) {
+                  const fill = ' '.repeat(missing);
+                  newText = newText.slice(0, insertPos) + fill + newText.slice(insertPos);
+                  onChange(newText);
+                  currentText = newText;
+                  textIndex = insertPos + missing;
+                } else {
+                  textIndex = insertPos;
+                }
+              } else {
+                // 不是目标行，直接使用插入位置
+                textIndex = insertPos;
+              }
+
               break;
             }
           }
 
-          // 如果没有找到目标位置，说明需要扩展文本
+          // 如果没有找到目标位置，说明需要从当前位置扩展文本到目标位置
           if (!foundPosition) {
-            // 计算从当前位置到目标位置需要添加的字符
-            let charsToAdd = 0;
-
             // 如果需要换行
             if (targetRow > currentRow) {
-              // 添加换行符
               for (let i = currentRow; i < targetRow; i++) {
                 newText += '\n';
               }
-              // 重置列位置
               currentCol = 0;
             }
 
@@ -638,8 +657,6 @@ export default function CompositionPaper({
             onChange(newText);
             currentText = newText;
             textIndex = newText.length;
-          } else {
-            textIndex = insertPos;
           }
         }
       }
