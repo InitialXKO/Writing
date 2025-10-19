@@ -252,17 +252,10 @@ export const useAppStore = create<AppState>()(
             : level
         );
 
-        // 检查是否可以解锁后续工具
-        const currentIndex = writingTools.findIndex(tool => tool.id === toolId);
-        const unlockedTools = [...progress.unlockedTools];
-
-        // 检查是否可以解锁后续工具
-        for (let i = currentIndex + 1; i < writingTools.length; i++) {
-          const nextToolId = writingTools[i].id;
-          if (!unlockedTools.includes(nextToolId) && canUnlockTool(nextToolId, {...progress, levels: updatedLevels}, writingTools)) {
-            unlockedTools.push(nextToolId);
-          }
-        }
+        // 通过理解测试仅解锁本工具的学习卡片（练习解锁由各自测试决定）
+        const unlockedTools = progress.unlockedTools.includes(toolId)
+          ? progress.unlockedTools
+          : [...progress.unlockedTools, toolId];
 
         set({
           progress: {
