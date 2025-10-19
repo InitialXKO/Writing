@@ -11,8 +11,34 @@ import AchievementCard from '@/components/AchievementCard';
 
 // 为静态导出生成首页
 export default function HomePage() {
-  const { progress, essays, setDailyChallenge, addAchievement } = useAppStore();
+  const { progress, essays, setDailyChallenge, addAchievement, updateHabitTracker } = useAppStore();
   const [currentChallenge, setCurrentChallenge] = useState(progress.dailyChallenge);
+
+  // 计算可用于每日挑战的工具（不包含未解锁的工具）
+  const getAvailableToolsForChallenge = () => {
+    return writingTools.filter(tool => {
+      if (tool.id === 'free-writing') return true;
+      const level = progress.levels.find(l => l.toolId === tool.id);
+      return !!level?.testPassed;
+    });
+  };
+
+  const pickRandom = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
+
+  const generateDailyChallenge = () => {
+    const available = getAvailableToolsForChallenge();
+    const selected = available.length > 0 ? pickRandom(available) : writingTools[0];
+    const exercises = selected.exercises || [];
+    const task = exercises.length > 0 ? pickRandom(exercises) : '自由写作：记录今天让你印象最深刻的一个瞬间（30字以内）';
+    return {
+      date: new Date(),
+      task,
+      completed: false,
+      streak: currentChallenge?.streak || 0,
+      recommendedToolId: selected.id,
+      canMakeup: false,
+    };
+  };
 
   // 处理每日挑战完成
   const handleChallengeComplete = () => {
@@ -53,6 +79,36 @@ export default function HomePage() {
     }
   };
 
+  // 换一个每日挑战（仅从已解锁工具中挑选）
+  const handleSwapChallenge = () => {
+    const available = getAvailableToolsForChallenge();
+    const selected = available.length > 0 ? pickRandom(available) : writingTools[0];
+    const exercises = selected.exercises || [];
+    const task = exercises.length > 0 ? pickRandom(exercises) : '自由写作：记录今天让你印象最深刻的一个瞬间（30字以内）';
+    const updated = {
+      ...currentChallenge!,
+      task,
+      recommendedToolId: selected.id,
+      completed: false,
+    };
+    setCurrentChallenge(updated);
+    setDailyChallenge(updated);
+  };
+
+  // 补签：如果昨天未完成，可补签一次，仅增加连续天数
+  const handleMakeup = () => {
+    if (!currentChallenge?.canMakeup) return;
+    const updated = {
+      ...currentChallenge!,
+      streak: (currentChallenge?.streak || 0) + 1,
+      canMakeup: false,
+    };
+    setCurrentChallenge(updated);
+    setDailyChallenge(updated);
+    // 同步更新习惯追踪连续天数
+    updateHabitTracker({ writingStreak: (progress.habitTracker?.writingStreak || 0) + 1 });
+  };
+
   // 检查是否需要生成新的每日挑战
   useEffect(() => {
     if (!currentChallenge) return;
@@ -61,14 +117,12 @@ export default function HomePage() {
     const challengeDate = new Date(currentChallenge.date).toDateString();
 
     if (today !== challengeDate) {
-      // 生成新的每日挑战
-      const newChallenge = {
-        date: new Date(),
-        task: "用'慢镜头'描写一个紧张瞬间，30字以内",
-        completed: false,
-        streak: currentChallenge.streak || 0
-      };
-
+      // 生成新的每日挑战：仅使用已解锁（可练习）的工具
+      let newChallenge = generateDailyChallenge();
+      // 如果上一日未完成，则开启一次补签机会
+      if (!currentChallenge.completed) {
+        newChallenge = { ...newChallenge, canMakeup: true };
+      }
       setCurrentChallenge(newChallenge);
       setDailyChallenge(newChallenge);
     }
@@ -94,6 +148,8 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto mb-8">
           <DailyChallengeCard
             challenge={currentChallenge}
+            onSwap={handleSwapChallenge}
+            onMakeup={handleMakeup}
           />
         </div>
       )}

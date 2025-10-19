@@ -58,20 +58,7 @@ export const canUnlockTool = (toolId: string, progress: StudentProgress, tools: 
     }
   }
 
-  // 检查掌握程度要求
-  if (conditions.minMasteryLevel && conditions.prerequisiteTools) {
-    const prereqLevels = conditions.prerequisiteTools.map(id =>
-      progress.levels.find(l => l.toolId === id)
-    ).filter(Boolean) as LevelProgress[];
-
-    if (prereqLevels.length > 0) {
-      const avgMastery = prereqLevels.reduce((sum, level) =>
-        sum + (level.masteryLevel || 0), 0) / prereqLevels.length;
-      if (avgMastery < conditions.minMasteryLevel) {
-        return false;
-      }
-    }
-  }
+  // 掌握程度要求已取消
 
   // 检查练习次数要求
   if (conditions.minPracticeCount && conditions.prerequisiteTools) {
@@ -170,7 +157,9 @@ const initialState: StudentProgress = {
     date: new Date(),
     task: "用'观察者之眼'描写你的文具盒，写出3个之前没注意到的细节",
     completed: false,
-    streak: 0
+    streak: 0,
+    recommendedToolId: 'tool-0',
+    canMakeup: false
   }
 };
 

@@ -57,6 +57,10 @@ export interface DailyChallenge {
   task: string;
   completed: boolean;
   streak: number; // 连续天数
+  // 推荐使用的工具（用于预选写作工具，不会强制）
+  recommendedToolId?: string;
+  // 是否可补签（当上一日未完成时为 true）
+  canMakeup?: boolean;
 }
 
 // 成就
