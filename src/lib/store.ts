@@ -21,6 +21,7 @@ interface AppState {
   essays: Essay[];
   addEssay: (essay: Omit<Essay, 'id' | 'createdAt'>) => void;
   updateEssay: (id: string, updates: Partial<Essay>) => void;
+  deleteEssay: (id: string) => void;
   addEssayVersion: (essayId: string, content: string, feedback?: string, actionItems?: ActionItem[]) => void; // 添加作文版本
   // 新增行动项更新方法
   updateActionItem: (essayId: string, versionId: string | null, actionItemId: string, completed: boolean) => void;
@@ -315,6 +316,12 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
+      deleteEssay: (id) => {
+        set(state => ({
+          essays: state.essays.filter(essay => essay.id !== id)
+        }));
+      },
+
       // 添加新版本到作文
       addEssayVersion: (essayId, content, feedback, actionItems) => {
         set(state => ({
@@ -457,6 +464,11 @@ export const useAppStore = create<AppState>()(
     {
       name: 'writing-companion-storage',
       version: 2, // 更新版本号
+      partialize: (state) => ({
+        progress: state.progress,
+        essays: state.essays,
+        aiConfig: state.aiConfig ? { ...state.aiConfig, apiKey: '' } : null,
+      }),
     }
   )
 );

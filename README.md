@@ -12,13 +12,13 @@
 
 ## 技术栈
 
-- **前端框架**：Next.js 15 (App Router)
+- **前端框架**：Next.js 14 (App Router)
 - **语言**：TypeScript
 - **样式**：Tailwind CSS
 - **状态管理**：Zustand + localStorage
 - **动画**：Framer Motion
 - **图标**：Lucide React
-- **部署**：Vercel静态导出
+- **部署**：Vercel 部署
 
 ## 本地开发
 
@@ -64,7 +64,7 @@ pnpm start
 
 ## Vercel部署
 
-这个项目已经配置为支持Vercel的静态导出部署：
+这个项目已经配置为支持在 Vercel 上的标准 Next.js 部署：
 
 1. 将代码推送到GitHub仓库
 2. 在[Vercel官网](https://vercel.com)登录并导入项目

@@ -2,18 +2,18 @@
 
 import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { ArrowLeft, Edit3, Eye, Trash2, History, BookOpen, Sparkles } from 'lucide-react';
+import { ArrowLeft, Edit3, Trash2, History, BookOpen, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { Essay, EssayVersion } from '@/types';
 
 export default function EssaysPage() {
-  const { essays, updateEssay } = useAppStore();
+  const { essays, deleteEssay } = useAppStore();
   const [selectedEssay, setSelectedEssay] = useState<Essay | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<EssayVersion | null>(null);
 
   const handleDeleteEssay = (id: string) => {
     if (confirm('确定要删除这篇作文吗？此操作不可撤销。')) {
-      updateEssay(id, { id: '' } as any); // 通过设置id为空来标记删除
+      deleteEssay(id);
       if (selectedEssay?.id === id) {
         setSelectedEssay(null);
         setSelectedVersion(null);
@@ -21,8 +21,8 @@ export default function EssaysPage() {
     }
   };
 
-  // 过滤掉已删除的作文
-  const activeEssays = essays.filter(essay => essay.id);
+  // 作文列表
+  const activeEssays = essays;
 
   // 获取当前显示的内容（选中的版本或当前作文）
   const getCurrentContent = () => {
