@@ -38,7 +38,7 @@ function WriteContent() {
     return !!level?.testPassed;
   });
 
-  // 从URL参数中获取预选的工具和题材
+  // 从URL参数中获取预选的工具和题材（只在组件初始化时执行一次）
   useEffect(() => {
     const toolParam = searchParams.get('tool');
     const topicParam = searchParams.get('topic');
@@ -78,8 +78,8 @@ function WriteContent() {
         // 如果目标工具未解锁练习，则回退到第一个可用工具
         setSelectedTool(availablePracticeTools[0]?.id || 'free-writing');
       }
-    } else {
-      // 未指定工具时，默认选择第一个可用工具
+    } else if (!essayId) {
+      // 只有在不是编辑模式时才设置默认工具
       setSelectedTool(availablePracticeTools[0]?.id || 'free-writing');
     }
 
@@ -90,7 +90,18 @@ function WriteContent() {
         setContent(`请围绕以下主题进行写作：${decodeURIComponent(topicParam)}\n\n`);
       }
     }
-  }, [searchParams, essays, progress, availablePracticeTools]);
+  }, []); // 空依赖数组，只在组件挂载时执行一次
+
+  // 当可用工具列表发生变化时，检查当前选择的工具是否仍然有效
+  useEffect(() => {
+    if (selectedTool !== 'free-writing') {
+      const currentTool = availablePracticeTools.find(tool => tool.id === selectedTool);
+      // 如果当前选择的工具不再可用，则重置为默认工具
+      if (!currentTool) {
+        setSelectedTool(availablePracticeTools[0]?.id || 'free-writing');
+      }
+    }
+  }, [availablePracticeTools, selectedTool]);
 
   const saveEssay = () => {
     // 检查是否完成了今日的每日挑战

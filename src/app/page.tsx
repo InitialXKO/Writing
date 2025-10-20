@@ -82,13 +82,56 @@ export default function HomePage() {
   // 换一个每日挑战（仅从已解锁工具中挑选）
   const handleSwapChallenge = () => {
     const available = getAvailableToolsForChallenge();
-    const selected = available.length > 0 ? pickRandom(available) : writingTools[0];
-    const exercises = selected.exercises || [];
-    const task = exercises.length > 0 ? pickRandom(exercises) : '自由写作：记录今天让你印象最深刻的一个瞬间（30字以内）';
+
+    // 如果没有可用工具，直接返回
+    if (available.length === 0) {
+      return;
+    }
+
+    let newTask = currentChallenge!.task;
+    let selectedTool = writingTools[0];
+    let maxAttempts = 10; // 防止无限循环
+    let attempts = 0;
+
+    // 循环直到找到不同的任务或达到最大尝试次数
+    while (newTask === currentChallenge!.task && attempts < maxAttempts && available.some(tool => (tool.exercises?.length || 0) > 1)) {
+      const selected = available.length > 0 ? pickRandom(available) : writingTools[0];
+      selectedTool = selected;
+      const exercises = selected.exercises || [];
+
+      // 如果当前工具只有一个练习，则尝试其他工具
+      if (exercises.length <= 1 && newTask === currentChallenge!.task) {
+        // 寻找有多个练习的工具
+        const toolsWithMultipleExercises = available.filter(tool => (tool.exercises?.length || 0) > 1);
+        if (toolsWithMultipleExercises.length > 0) {
+          const selectedWithMultiple = pickRandom(toolsWithMultipleExercises);
+          selectedTool = selectedWithMultiple;
+          const multipleExercises = selectedWithMultiple.exercises || [];
+          if (multipleExercises.length > 0) {
+            newTask = pickRandom(multipleExercises);
+          } else {
+            newTask = '自由写作：记录今天让你印象最深刻的一个瞬间（30字以内）';
+          }
+        } else {
+          // 如果所有工具都只有一个练习，则随机选择
+          newTask = exercises.length > 0 ? pickRandom(exercises) : '自由写作：记录今天让你印象最深刻的一个瞬间（30字以内）';
+        }
+      } else {
+        newTask = exercises.length > 0 ? pickRandom(exercises) : '自由写作：记录今天让你印象最深刻的一个瞬间（30字以内）';
+      }
+
+      attempts++;
+    }
+
+    // 如果尝试了多次仍然相同，则添加一个随机后缀来强制变化
+    if (newTask === currentChallenge!.task) {
+      newTask += ` (${Math.floor(Math.random() * 1000)})`;
+    }
+
     const updated = {
       ...currentChallenge!,
-      task,
-      recommendedToolId: selected.id,
+      task: newTask,
+      recommendedToolId: selectedTool.id,
       completed: false,
     };
     setCurrentChallenge(updated);
