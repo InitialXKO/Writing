@@ -324,7 +324,14 @@ function WriteContent() {
       setIsFeedbackModalOpen(true);
     } catch (error) {
       console.error('AI批改失败:', error);
-      setFeedback(`批改失败：${error instanceof Error ? error.message : '未知错误'}\n\n请检查API配置或稍后重试`);
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      setFeedback(`批改失败：${errorMessage}\n\n请检查您的AI配置是否正确（API密钥、基础URL、模型等），或稍后重试`);
+
+      // 提供检查配置的选项
+      const confirmCheckConfig = confirm(`AI批改失败：${errorMessage}\n\n建议检查AI配置是否正确，是否前往设置页面检查配置？`);
+      if (confirmCheckConfig) {
+        window.location.href = '/settings';
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -520,7 +527,7 @@ function WriteContent() {
 
             <div className="space-y-4">
               <p className="text-sm text-morandi-gray-600">
-                使用AI帮你检查作文，提供专业的修改建议。请确保已在设置中配置了API密钥。
+                使用AI帮你检查作文，提供专业的修改建议。请确保已在<a href="/settings" className="text-morandi-blue-600 hover:underline">设置页面</a>中配置了AI参数。
               </p>
 
               <button

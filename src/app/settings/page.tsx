@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getActualEndpoint } from '@/lib/utils';
-import { ArrowLeft, Key, Globe, RotateCcw, Save, Shield, Info, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Key, Globe, RotateCcw, Shield, Info, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SettingsPage() {
@@ -12,6 +12,69 @@ export default function SettingsPage() {
   const [baseURL, setBaseURL] = useState(aiConfig?.baseURL || '');
   const [model, setModel] = useState(aiConfig?.model || 'gpt-4');
   const [models, setModels] = useState<string[]>(aiConfig?.models || []);
+
+  // 防抖定时器
+  let saveTimeout: NodeJS.Timeout | null = null;
+
+  // 通用函数：选择有效模型并保存配置
+  const selectValidModelAndSave = (newModels: string[], currentModel: string) => {
+    let selectedModel = currentModel;
+    if (newModels.length > 0) {
+      // 如果当前模型不在新获取的列表中，则选择第一个模型
+      if (!newModels.includes(currentModel)) {
+        selectedModel = newModels[0];
+        setModel(selectedModel);
+      }
+    }
+    return selectedModel;
+  };
+
+  // 通用函数：保存AI配置
+  const saveAIConfig = (key: string, url: string, selectedModel: string, modelList: string[]) => {
+    setAIConfig({
+      apiKey: key,
+      baseURL: url,
+      model: selectedModel,
+      models: modelList,
+    });
+  };
+
+  // 创建带防抖功能的自动保存函数
+  const setApiKeyAndSave = (value: string) => {
+    setApiKey(value);
+    // 清除之前的定时器
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+    // 设置新的定时器
+    saveTimeout = setTimeout(() => {
+      saveAIConfig(value, baseURL, model, aiConfig?.models || []);
+    }, 1000);
+  };
+
+  const setBaseURLAndSave = (value: string) => {
+    setBaseURL(value);
+    // 清除之前的定时器
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+    // 设置新的定时器
+    saveTimeout = setTimeout(() => {
+      saveAIConfig(apiKey, value, model, aiConfig?.models || []);
+    }, 1000);
+  };
+
+  const setModelAndSave = (value: string) => {
+    setModel(value);
+    // 清除之前的定时器
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+    // 设置新的定时器
+    saveTimeout = setTimeout(() => {
+      saveAIConfig(apiKey, baseURL, value, aiConfig?.models || []);
+    }, 1000);
+  };
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'error' | null>(null);
@@ -54,7 +117,31 @@ export default function SettingsPage() {
         setModels(modelNames);
         // 保存模型列表到store
         setAvailableModels(modelNames);
-        alert('模型列表获取成功');
+
+        // 自动选择一个有效的模型
+        const selectedModel = selectValidModelAndSave(modelNames, model);
+
+        // 自动测试连接
+        try {
+          const endpoint = getActualEndpoint(baseURL);
+          const testResponse = await fetch(`${endpoint}/models`, {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!testResponse.ok) {
+            throw new Error(`连接测试失败: ${testResponse.status} ${testResponse.statusText}`);
+          }
+
+          // 连接测试成功后自动保存配置
+          saveAIConfig(apiKey, baseURL, selectedModel, modelNames);
+          alert(`模型列表获取成功，${modelNames.length > 0 ? (modelNames.includes(model) ? '保持当前模型配置' : '已自动选择第一个模型') : '但未获取到可用模型'}，连接测试通过，配置已保存`);
+        } catch (testError) {
+          console.error('连接测试失败:', testError);
+          alert(`模型列表获取成功，但连接测试失败：${testError instanceof Error ? testError.message : '未知错误'}\n配置未保存，请检查您的API配置`);
+        }
       } else {
         throw new Error('响应格式不正确');
       }
@@ -90,27 +177,33 @@ export default function SettingsPage() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
+      const data = await response.json();
+      let updatedModels: string[] = [];
+      if (data.data && Array.isArray(data.data)) {
+        updatedModels = data.data.map((model: any) => model.id).filter(Boolean);
+        setModels(updatedModels);
+        setAvailableModels(updatedModels);
+      }
+
+      // 自动选择一个有效的模型
+      const selectedModel = selectValidModelAndSave(updatedModels, model);
+
       setConnectionStatus('success');
       setConnectionMessage('连接成功');
+      // 自动保存配置
+      saveAIConfig(apiKey, baseURL, selectedModel, updatedModels);
+      alert(`连接成功，${updatedModels.length > 0 ? (updatedModels.includes(model) ? '保持当前模型配置' : '已自动选择第一个模型') : '但未获取到可用模型'}，配置已保存`);
     } catch (error) {
       console.error('连接测试失败:', error);
       setConnectionStatus('error');
       setConnectionMessage('连接失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      alert(`连接测试失败：${error instanceof Error ? error.message : '未知错误'}\n请检查您的API配置`);
     } finally {
       setIsTestingConnection(false);
     }
   };
 
-  const handleSave = () => {
-    setAIConfig({
-      apiKey,
-      baseURL,
-      model,
-      models: aiConfig?.models || [], // 保留现有的模型列表
-    });
-    alert('配置已保存');
-  };
-
+  
   const handleReset = () => {
     if (confirm('确定要重置所有学习进度吗？此操作不可撤销。')) {
       resetProgress();
@@ -167,7 +260,7 @@ export default function SettingsPage() {
               <input
                 type="password"
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={(e) => setApiKeyAndSave(e.target.value)}
                 placeholder="sk-...your-api-key"
                 className="w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 shadow-sm"
               />
@@ -186,7 +279,7 @@ export default function SettingsPage() {
               <input
                 type="text"
                 value={baseURL}
-                onChange={(e) => setBaseURL(e.target.value)}
+                onChange={(e) => setBaseURLAndSave(e.target.value)}
                 placeholder="例如: https://api.openai.com/v1 或 api.openai.com"
                 className="w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 shadow-sm"
               />
@@ -209,7 +302,7 @@ export default function SettingsPage() {
               <div className="flex gap-2">
                 <select
                   value={model}
-                  onChange={(e) => setModel(e.target.value)}
+                  onChange={(e) => setModelAndSave(e.target.value)}
                   className="flex-1 px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white shadow-sm"
                 >
                   {models.length > 0 ? (
@@ -265,13 +358,6 @@ export default function SettingsPage() {
                     测试连接
                   </>
                 )}
-              </button>
-              <button
-                onClick={handleSave}
-                className="flex items-center gap-2 bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 hover:from-morandi-green-600 hover:to-morandi-green-700 text-white font-medium py-3 px-6 rounded-xl transition-all shadow-md hover:shadow-lg"
-              >
-                <Save className="w-4 h-4" />
-                保存配置
               </button>
             </div>
             {connectionStatus && (
