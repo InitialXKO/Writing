@@ -5,9 +5,14 @@ import { useAppStore } from '@/lib/store';
 import { getActualEndpoint } from '@/lib/utils';
 import { ArrowLeft, Key, Globe, RotateCcw, Shield, Info, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useNotificationContext } from '@/contexts/NotificationContext';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 export default function SettingsPage() {
   const { aiConfig, setAIConfig, setAvailableModels, resetProgress } = useAppStore();
+  const { showSuccess, showError, showWarning } = useNotificationContext();
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [confirmDialogProps, setConfirmDialogProps] = useState({ title: '', message: '' });
   const [apiKey, setApiKey] = useState(aiConfig?.apiKey || '');
   const [baseURL, setBaseURL] = useState(aiConfig?.baseURL || '');
   const [model, setModel] = useState(aiConfig?.model || 'gpt-4');
@@ -93,7 +98,7 @@ export default function SettingsPage() {
   // 从供应商拉取模型列表
   const fetchModels = async () => {
     if (!apiKey) {
-      alert('请先填写API密钥');
+      showWarning('请先填写API密钥');
       return;
     }
 
@@ -137,17 +142,17 @@ export default function SettingsPage() {
 
           // 连接测试成功后自动保存配置
           saveAIConfig(apiKey, baseURL, selectedModel, modelNames);
-          alert(`模型列表获取成功，${modelNames.length > 0 ? (modelNames.includes(model) ? '保持当前模型配置' : '已自动选择第一个模型') : '但未获取到可用模型'}，连接测试通过，配置已保存`);
+          showSuccess(`模型列表获取成功，${modelNames.length > 0 ? (modelNames.includes(model) ? '保持当前模型配置' : '已自动选择第一个模型') : '但未获取到可用模型'}，连接测试通过，配置已保存`);
         } catch (testError) {
           console.error('连接测试失败:', testError);
-          alert(`模型列表获取成功，但连接测试失败：${testError instanceof Error ? testError.message : '未知错误'}\n配置未保存，请检查您的API配置`);
+          showError(`模型列表获取成功，但连接测试失败：${testError instanceof Error ? testError.message : '未知错误'}\n配置未保存，请检查您的API配置`);
         }
       } else {
         throw new Error('响应格式不正确');
       }
     } catch (error) {
       console.error('获取模型列表失败:', error);
-      alert('获取模型列表失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      showError('获取模型列表失败: ' + (error instanceof Error ? error.message : '未知错误'));
     } finally {
       setIsFetchingModels(false);
     }
@@ -156,7 +161,7 @@ export default function SettingsPage() {
   // 测试连接
   const testConnection = async () => {
     if (!apiKey) {
-      alert('请先填写API密钥');
+      showWarning('请先填写API密钥');
       return;
     }
 
@@ -192,12 +197,12 @@ export default function SettingsPage() {
       setConnectionMessage('连接成功');
       // 自动保存配置
       saveAIConfig(apiKey, baseURL, selectedModel, updatedModels);
-      alert(`连接成功，${updatedModels.length > 0 ? (updatedModels.includes(model) ? '保持当前模型配置' : '已自动选择第一个模型') : '但未获取到可用模型'}，配置已保存`);
+      showSuccess(`连接成功，${updatedModels.length > 0 ? (updatedModels.includes(model) ? '保持当前模型配置' : '已自动选择第一个模型') : '但未获取到可用模型'}，配置已保存`);
     } catch (error) {
       console.error('连接测试失败:', error);
       setConnectionStatus('error');
       setConnectionMessage('连接失败: ' + (error instanceof Error ? error.message : '未知错误'));
-      alert(`连接测试失败：${error instanceof Error ? error.message : '未知错误'}\n请检查您的API配置`);
+      showError(`连接测试失败：${error instanceof Error ? error.message : '未知错误'}\n请检查您的API配置`);
     } finally {
       setIsTestingConnection(false);
     }
@@ -205,10 +210,21 @@ export default function SettingsPage() {
 
   
   const handleReset = () => {
-    if (confirm('确定要重置所有学习进度吗？此操作不可撤销。')) {
-      resetProgress();
-      alert('进度已重置');
-    }
+    setConfirmDialogProps({
+      title: '重置进度',
+      message: '确定要重置所有学习进度吗？此操作不可撤销。'
+    });
+    setIsConfirmDialogOpen(true);
+  };
+
+  const handleConfirmReset = () => {
+    setIsConfirmDialogOpen(false);
+    resetProgress();
+    showSuccess('进度已重置');
+  };
+
+  const handleCancelReset = () => {
+    setIsConfirmDialogOpen(false);
   };
 
   return (

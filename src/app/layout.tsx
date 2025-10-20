@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { NotificationProvider } from '@/contexts/NotificationContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -18,9 +19,11 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className={inter.className}>
-        <div className="min-h-screen bg-gradient-to-br from-morandi-gray-100 to-morandi-beige-100">
-          {children}
-        </div>
+        <NotificationProvider>
+          <div className="min-h-screen bg-gradient-to-br from-morandi-gray-100 to-morandi-beige-100">
+            {children}
+          </div>
+        </NotificationProvider>
       </body>
     </html>
   );

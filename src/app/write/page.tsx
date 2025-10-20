@@ -10,9 +10,16 @@ import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
 import CompositionPaper from '@/components/CompositionPaper';
+import { useNotificationContext } from '@/contexts/NotificationContext';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useState } from 'react';
 
 function WriteContent() {
   const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, progress, setDailyChallenge, updateHabitTracker } = useAppStore();
+  const { showSuccess, showError, showWarning } = useNotificationContext();
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [confirmDialogProps, setConfirmDialogProps] = useState({ title: '', message: '' });
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -86,23 +93,7 @@ function WriteContent() {
     }
   }, [searchParams, essays, progress, availablePracticeTools]);
 
-  const handleSubmit = async () => {
-    if (!title.trim() || !content.trim()) {
-      alert('请填写标题和内容');
-      return;
-    }
-
-    // 检查行动项完成情况
-    const completedActionItems = actionItems.filter(item => item.completed).length;
-    const totalActionItems = actionItems.length;
-
-    if (totalActionItems > 0 && completedActionItems < totalActionItems) {
-      const confirmSave = confirm(`您还有 ${totalActionItems - completedActionItems} 个修改任务未完成。确定要保存作文吗？`);
-      if (!confirmSave) {
-        return;
-      }
-    }
-
+  const saveEssay = () => {
     // 检查是否完成了今日的每日挑战
     const today = new Date().toDateString();
     const dailyChallenge = progress.dailyChallenge;
@@ -120,7 +111,7 @@ function WriteContent() {
       if (editingVersionId) {
         // 如果是编辑特定版本，保存为新版本
         addEssayVersion(editingEssayId, content, feedback, actionItems);
-        alert('新版本已保存到作文中');
+        showSuccess('新版本已保存到作文中');
       } else {
         // 如果是编辑当前版本，更新作文
         updateEssay(editingEssayId, {
@@ -130,7 +121,7 @@ function WriteContent() {
           feedback,
           actionItems: actionItems,
         });
-        alert('作文已更新');
+        showSuccess('作文已更新');
       }
     } else {
       // 保存新作文
@@ -141,7 +132,7 @@ function WriteContent() {
         feedback,
         actionItems: actionItems,
       });
-      alert('作文已保存到我的作文中');
+      showSuccess('作文已保存到我的作文中');
     }
 
     // 如果完成了今日挑战，更新挑战状态
@@ -157,13 +148,44 @@ function WriteContent() {
       updateHabitTracker({ writingStreak: (progress.habitTracker?.writingStreak || 0) + 1 });
 
       // 显示完成提示（显示最新的 streak 数值）
-      alert(`恭喜完成今日挑战！连续写作天数：${updatedChallenge.streak}天`);
+      showSuccess(`恭喜完成今日挑战！连续写作天数：${updatedChallenge.streak}天`);
     }
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !content.trim()) {
+      showWarning('请填写标题和内容');
+      return;
+    }
+
+    // 检查行动项完成情况
+    const completedActionItems = actionItems.filter(item => item.completed).length;
+    const totalActionItems = actionItems.length;
+
+    if (totalActionItems > 0 && completedActionItems < totalActionItems) {
+      const handleConfirmSave = () => {
+        setIsConfirmDialogOpen(false);
+        setConfirmAction(null);
+        // 继续保存作文的逻辑
+        saveEssay();
+      };
+
+      setConfirmDialogProps({
+        title: '确认保存',
+        message: `您还有 ${totalActionItems - completedActionItems} 个修改任务未完成。确定要保存作文吗？`
+      });
+      setConfirmAction(() => handleConfirmSave);
+      setIsConfirmDialogOpen(true);
+      return;
+    }
+
+    // 如果没有未完成的行动项，直接保存
+    saveEssay();
   };
 
   const handleAIReview = async () => {
     if (!content.trim()) {
-      alert('请先填写作文内容');
+      showWarning('请先填写作文内容');
       return;
     }
 
@@ -328,10 +350,18 @@ function WriteContent() {
       setFeedback(`批改失败：${errorMessage}\n\n请检查您的AI配置是否正确（API密钥、基础URL、模型等），或稍后重试`);
 
       // 提供检查配置的选项
-      const confirmCheckConfig = confirm(`AI批改失败：${errorMessage}\n\n建议检查AI配置是否正确，是否前往设置页面检查配置？`);
-      if (confirmCheckConfig) {
+      const handleConfirmCheckConfig = () => {
+        setIsConfirmDialogOpen(false);
+        setConfirmAction(null);
         window.location.href = '/settings';
-      }
+      };
+
+      setConfirmDialogProps({
+        title: 'AI批改失败',
+        message: `AI批改失败：${errorMessage}\n\n建议检查AI配置是否正确，是否前往设置页面检查配置？`
+      });
+      setConfirmAction(() => handleConfirmCheckConfig);
+      setIsConfirmDialogOpen(true);
     } finally {
       setIsGenerating(false);
     }
@@ -561,6 +591,22 @@ function WriteContent() {
         feedback={feedback}
         actionItems={actionItems}
         onActionItemUpdate={handleActionItemUpdate}
+      />
+
+      {/* 确认对话框 */}
+      <ConfirmDialog
+        isOpen={isConfirmDialogOpen}
+        title={confirmDialogProps.title}
+        message={confirmDialogProps.message}
+        onConfirm={() => {
+          if (confirmAction) {
+            confirmAction();
+          }
+        }}
+        onCancel={() => {
+          setIsConfirmDialogOpen(false);
+          setConfirmAction(null);
+        }}
       />
     </div>
   );
