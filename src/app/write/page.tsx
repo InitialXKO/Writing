@@ -12,7 +12,7 @@ import ActionItemsList from '@/components/ActionItemsList';
 import CompositionPaper from '@/components/CompositionPaper';
 
 function WriteContent() {
-  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, progress, setDailyChallenge } = useAppStore();
+  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, progress, setDailyChallenge, updateHabitTracker } = useAppStore();
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -153,6 +153,8 @@ function WriteContent() {
       };
 
       setDailyChallenge(updatedChallenge);
+      // 更新习惯追踪连续天数（用于解锁条件）
+      updateHabitTracker({ writingStreak: (progress.habitTracker?.writingStreak || 0) + 1 });
 
       // 显示完成提示（显示最新的 streak 数值）
       alert(`恭喜完成今日挑战！连续写作天数：${updatedChallenge.streak}天`);

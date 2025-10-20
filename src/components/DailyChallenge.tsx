@@ -6,13 +6,19 @@ import Link from 'next/link';
 
 interface DailyChallengeProps {
   challenge: DailyChallenge;
+  onSwap?: () => void;
+  onMakeup?: () => void;
 }
 
-export default function DailyChallengeCard({ challenge }: DailyChallengeProps) {
+export default function DailyChallengeCard({ challenge, onSwap, onMakeup }: DailyChallengeProps) {
   // 确保日期是 Date 对象，如果不是则转换
   const challengeDate = typeof challenge.date === 'string'
     ? new Date(challenge.date)
     : challenge.date;
+
+  const targetHref = challenge.recommendedToolId
+    ? `/write?tool=${encodeURIComponent(challenge.recommendedToolId)}`
+    : '/write';
 
   return (
     <div className="bg-gradient-to-br from-morandi-purple-50 to-morandi-purple-100 border border-morandi-purple-200 rounded-2xl p-6">
@@ -47,13 +53,33 @@ export default function DailyChallengeCard({ challenge }: DailyChallengeProps) {
             已完成
           </div>
         ) : (
-          <Link
-            href="/write"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white shadow-md hover:shadow-lg transition-all"
-          >
-            <Edit3 className="w-4 h-4" />
-            去完成
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={targetHref}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white shadow-md hover:shadow-lg transition-all"
+            >
+              <Edit3 className="w-4 h-4" />
+              去完成
+            </Link>
+            {onSwap && (
+              <button
+                onClick={onSwap}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl font-medium bg-white text-morandi-purple-700 border border-morandi-purple-300 hover:bg-morandi-purple-50 shadow-sm"
+              >
+                <Sparkles className="w-4 h-4" />
+                换一个
+              </button>
+            )}
+            {challenge.canMakeup && onMakeup && (
+              <button
+                onClick={onMakeup}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl font-medium bg-white text-morandi-purple-700 border border-morandi-purple-300 hover:bg-morandi-purple-50 shadow-sm"
+              >
+                <Calendar className="w-4 h-4" />
+                补签
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
