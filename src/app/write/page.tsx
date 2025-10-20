@@ -12,7 +12,6 @@ import ActionItemsList from '@/components/ActionItemsList';
 import CompositionPaper from '@/components/CompositionPaper';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { useState } from 'react';
 
 function WriteContent() {
   const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, progress, setDailyChallenge, updateHabitTracker } = useAppStore();
