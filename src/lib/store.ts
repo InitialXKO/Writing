@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { StudentProgress, AIConfig, Essay, EssayVersion, ActionItem, DailyChallenge, HabitTracker, WritingTool, LevelProgress, Achievement } from '@/types';
 import { writingTools } from '@/data/tools';
+import { nanoid } from 'nanoid';
 
 interface AppState {
   // 学生进度
@@ -93,7 +94,7 @@ export const generateActionItems = (feedback: string): ActionItem[] => {
   // 检查反馈中是否提到了具体的修改建议
   if (feedback.includes("具体动作")) {
     items.push({
-      id: `action-${Date.now()}-1`,
+      id: `action-${nanoid()}`,
       task: "将抽象形容词改为具体动作描写",
       completed: false
     });
@@ -101,7 +102,7 @@ export const generateActionItems = (feedback: string): ActionItem[] => {
 
   if (feedback.includes("慢镜头")) {
     items.push({
-      id: `action-${Date.now()}-2`,
+      id: `action-${nanoid()}`,
       task: "在关键场景添加慢镜头描写",
       completed: false
     });
@@ -109,7 +110,7 @@ export const generateActionItems = (feedback: string): ActionItem[] => {
 
   if (feedback.includes("五感")) {
     items.push({
-      id: `action-${Date.now()}-3`,
+      id: `action-${nanoid()}`,
       task: "添加三种感官描写",
       completed: false
     });
@@ -117,7 +118,7 @@ export const generateActionItems = (feedback: string): ActionItem[] => {
 
   if (feedback.includes("对比")) {
     items.push({
-      id: `action-${Date.now()}-4`,
+      id: `action-${nanoid()}`,
       task: "使用对比手法突出特点",
       completed: false
     });
@@ -126,7 +127,7 @@ export const generateActionItems = (feedback: string): ActionItem[] => {
   // 如果没有特定的建议，添加通用的行动项
   if (items.length === 0) {
     items.push({
-      id: `action-${Date.now()}-5`,
+      id: `action-${nanoid()}`,
       task: "根据反馈修改作文中的一个问题",
       completed: false
     });
@@ -163,7 +164,7 @@ const initialState: StudentProgress = {
   }
 };
 
-const genId = (): string => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? (crypto as any).randomUUID() : Date.now().toString());
+const genId = (): string => nanoid();
 
 export const useAppStore = create<AppState>()(
   persist(

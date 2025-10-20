@@ -90,118 +90,116 @@ export default function CompositionPaper({
   // 计算行间距，确保它正确更新
   const rowGap = Math.max(2, Math.floor(cellSize * 0.2)); // 行间距为格子大小的20%
 
-  // 将网格索引转换为字符索引
-  const gridIndexToCharIndex = (gridIndex: number) => {
+  // 字符处理辅助函数，处理字符在网格中的位置计算
+  const processCharacter = (
+    char: string,
+    currentIndex: number,
+    currentRow: number,
+    currentCol: number,
+    text: string,
+    charsPerLine: number
+  ) => {
+    let newRow = currentRow;
+    let newCol = currentCol;
+    let nextIndex = currentIndex;
+
+    if (char === '\n') {
+      // 遇到换行符，跳到下一行开头
+      newRow++;
+      newCol = 0;
+    } else {
+      // 移动到下一个格子
+      // 检查是否是英文字符（字母或数字）
+      if (/[a-zA-Z0-9]/.test(char)) {
+        // 检查下一个字符是否也是英文字符
+        if (currentIndex + 1 < text.length && /[a-zA-Z0-9]/.test(text[currentIndex + 1])) {
+          // 英文两个字母占一格
+          newCol++;
+          if (newCol >= charsPerLine) {
+            // 到达行末，跳到下一行
+            newRow++;
+            newCol = 0;
+          }
+          nextIndex += 1; // 跳过下一个字符
+        } else {
+          // 单个英文字母占一格
+          newCol++;
+          if (newCol >= charsPerLine) {
+            // 到达行末，跳到下一行
+            newRow++;
+            newCol = 0;
+          }
+        }
+      } else {
+        // 中文字符或其他符号占一格
+        newCol++;
+        if (newCol >= charsPerLine) {
+          // 到达行末，跳到下一行
+          newRow++;
+          newCol = 0;
+        }
+      }
+    }
+
+    return { newRow, newCol, nextIndex };
+  };
+
+  // 将网格索引转换为字符索引的辅助函数
+  const calculateGridToCharPosition = (gridIndex: number, text: string, charsPerLine: number) => {
     const targetRow = Math.floor(gridIndex / charsPerLine);
     const targetCol = gridIndex % charsPerLine;
 
     let currentRow = 0;
     let currentCol = 0;
 
-    for (let i = 0; i < value.length; i++) {
-      const char = value[i];
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
       if (currentRow === targetRow && currentCol === targetCol) {
         return i;
       }
 
-      if (char === '\n') {
-        // 遇到换行符，跳到下一行开头
-        currentRow++;
-        currentCol = 0;
-      } else {
-        // 移动到下一个格子
-        // 检查是否是英文字符（字母或数字）
-        if (/[a-zA-Z0-9]/.test(char)) {
-          // 检查下一个字符是否也是英文字符
-          if (i + 1 < value.length && /[a-zA-Z0-9]/.test(value[i + 1])) {
-            // 英文两个字母占一格
-            currentCol++;
-            if (currentCol >= charsPerLine) {
-              // 到达行末，跳到下一行
-              currentRow++;
-              currentCol = 0;
-            }
-            i += 1; // 跳过下一个字符
-          } else {
-            // 单个英文字母占一格
-            currentCol++;
-            if (currentCol >= charsPerLine) {
-              // 到达行末，跳到下一行
-              currentRow++;
-              currentCol = 0;
-            }
-          }
-        } else {
-          // 中文字符或其他符号占一格
-          currentCol++;
-          if (currentCol >= charsPerLine) {
-            // 到达行末，跳到下一行
-            currentRow++;
-            currentCol = 0;
-          }
-        }
-      }
+      const { newRow, newCol, nextIndex } = processCharacter(char, i, currentRow, currentCol, text, charsPerLine);
+      currentRow = newRow;
+      currentCol = newCol;
+      i = nextIndex;
     }
 
     // 如果目标位置在现有文本之后，返回文本长度作为插入位置
     if (currentRow < targetRow || (currentRow === targetRow && currentCol < targetCol)) {
-      return value.length;
+      return text.length;
     }
 
     return -1; // 没有找到对应的字符
   };
 
-  // 将字符索引转换为网格索引
-  const charIndexToGridIndex = (charIndex: number) => {
+  // 将字符索引转换为网格索引的辅助函数
+  const calculateCharToGridPosition = (charIndex: number, text: string, charsPerLine: number) => {
     let currentRow = 0;
     let currentCol = 0;
 
-    for (let i = 0; i < value.length && i <= charIndex; i++) {
+    for (let i = 0; i < text.length && i <= charIndex; i++) {
       if (i === charIndex) {
         return currentRow * charsPerLine + currentCol;
       }
 
-      const char = value[i];
-      if (char === '\n') {
-        // 遇到换行符，跳到下一行开头
-        currentRow++;
-        currentCol = 0;
-      } else {
-        // 移动到下一个格子
-        // 检查是否是英文字符（字母或数字）
-        if (/[a-zA-Z0-9]/.test(char)) {
-          // 检查下一个字符是否也是英文字符
-          if (i + 1 < value.length && /[a-zA-Z0-9]/.test(value[i + 1])) {
-            // 英文两个字母占一格
-            currentCol++;
-            if (currentCol >= charsPerLine) {
-              // 到达行末，跳到下一行
-              currentRow++;
-              currentCol = 0;
-            }
-            i += 1; // 跳过下一个字符
-          } else {
-            // 单个英文字母占一格
-            currentCol++;
-            if (currentCol >= charsPerLine) {
-              // 到达行末，跳到下一行
-              currentRow++;
-              currentCol = 0;
-            }
-          }
-        } else {
-          // 中文字符或其他符号占一格
-          currentCol++;
-          if (currentCol >= charsPerLine) {
-            // 到达行末，跳到下一行
-            currentRow++;
-            currentCol = 0;
-          }
-        }
-      }
+      const char = text[i];
+      const { newRow, newCol, nextIndex } = processCharacter(char, i, currentRow, currentCol, text, charsPerLine);
+      currentRow = newRow;
+      currentCol = newCol;
+      i = nextIndex;
     }
 
     return currentRow * charsPerLine + currentCol; // 返回计算出的网格位置
+  };
+
+  // 将网格索引转换为字符索引
+  const gridIndexToCharIndex = (gridIndex: number) => {
+    return calculateGridToCharPosition(gridIndex, value, charsPerLine);
+  };
+
+  // 将字符索引转换为网格索引
+  const charIndexToGridIndex = (charIndex: number) => {
+    return calculateCharToGridPosition(charIndex, value, charsPerLine);
   };
 
   // 当容器大小或每行字符数变化时重新计算格子大小

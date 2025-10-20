@@ -5,20 +5,38 @@ import { useAppStore } from '@/lib/store';
 import { ArrowLeft, Edit3, Trash2, History, BookOpen, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { Essay, EssayVersion } from '@/types';
+import { useNotificationContext } from '@/contexts/NotificationContext';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 export default function EssaysPage() {
   const { essays, deleteEssay } = useAppStore();
+  const { showSuccess, showError } = useNotificationContext();
   const [selectedEssay, setSelectedEssay] = useState<Essay | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<EssayVersion | null>(null);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [essayToDelete, setEssayToDelete] = useState<string | null>(null);
 
   const handleDeleteEssay = (id: string) => {
-    if (confirm('确定要删除这篇作文吗？此操作不可撤销。')) {
-      deleteEssay(id);
-      if (selectedEssay?.id === id) {
+    setEssayToDelete(id);
+    setIsConfirmDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (essayToDelete) {
+      deleteEssay(essayToDelete);
+      if (selectedEssay?.id === essayToDelete) {
         setSelectedEssay(null);
         setSelectedVersion(null);
       }
+      showSuccess('作文已删除');
     }
+    setIsConfirmDialogOpen(false);
+    setEssayToDelete(null);
+  };
+
+  const handleCancelDelete = () => {
+    setIsConfirmDialogOpen(false);
+    setEssayToDelete(null);
   };
 
   // 作文列表
@@ -151,6 +169,17 @@ export default function EssaysPage() {
             )}
           </div>
         </div>
+
+        {/* 确认对话框 */}
+        <ConfirmDialog
+          isOpen={isConfirmDialogOpen}
+          title="删除作文"
+          message="确定要删除这篇作文吗？此操作不可撤销。"
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
+          confirmText="删除"
+          cancelText="取消"
+        />
 
         {/* 作文详情和操作 */}
         <div className="lg:col-span-2">

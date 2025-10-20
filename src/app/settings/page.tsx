@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getActualEndpoint } from '@/lib/utils';
 import { ArrowLeft, Key, Globe, RotateCcw, Shield, Info, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const [models, setModels] = useState<string[]>(aiConfig?.models || []);
 
   // 防抖定时器
-  let saveTimeout: NodeJS.Timeout | null = null;
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 通用函数：选择有效模型并保存配置
   const selectValidModelAndSave = (newModels: string[], currentModel: string) => {
@@ -48,11 +48,11 @@ export default function SettingsPage() {
   const setApiKeyAndSave = (value: string) => {
     setApiKey(value);
     // 清除之前的定时器
-    if (saveTimeout) {
-      clearTimeout(saveTimeout);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
     // 设置新的定时器
-    saveTimeout = setTimeout(() => {
+    saveTimeoutRef.current = setTimeout(() => {
       saveAIConfig(value, baseURL, model, aiConfig?.models || []);
     }, 1000);
   };
@@ -60,11 +60,11 @@ export default function SettingsPage() {
   const setBaseURLAndSave = (value: string) => {
     setBaseURL(value);
     // 清除之前的定时器
-    if (saveTimeout) {
-      clearTimeout(saveTimeout);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
     // 设置新的定时器
-    saveTimeout = setTimeout(() => {
+    saveTimeoutRef.current = setTimeout(() => {
       saveAIConfig(apiKey, value, model, aiConfig?.models || []);
     }, 1000);
   };
@@ -72,14 +72,23 @@ export default function SettingsPage() {
   const setModelAndSave = (value: string) => {
     setModel(value);
     // 清除之前的定时器
-    if (saveTimeout) {
-      clearTimeout(saveTimeout);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
     // 设置新的定时器
-    saveTimeout = setTimeout(() => {
+    saveTimeoutRef.current = setTimeout(() => {
       saveAIConfig(apiKey, baseURL, value, aiConfig?.models || []);
     }, 1000);
   };
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'error' | null>(null);
