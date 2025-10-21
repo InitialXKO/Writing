@@ -53,23 +53,25 @@ export default function DailyChallengeCard({ challenge, onSwap, onMakeup }: Dail
             已完成
           </div>
         ) : (
-          <div className="flex items-center gap-2 flex-wrap">
-            <Link
-              href={targetHref}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white shadow-md hover:shadow-lg transition-all whitespace-nowrap"
-            >
-              <Edit3 className="w-4 h-4" />
-              去完成
-            </Link>
-            {onSwap && (
-              <button
-                onClick={onSwap}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl font-medium bg-white text-morandi-purple-700 border border-morandi-purple-300 hover:bg-morandi-purple-50 shadow-sm whitespace-nowrap"
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Link
+                href={targetHref}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white shadow-md hover:shadow-lg transition-all whitespace-nowrap"
               >
-                <Sparkles className="w-4 h-4" />
-                换一个
-              </button>
-            )}
+                <Edit3 className="w-4 h-4" />
+                去完成
+              </Link>
+              {onSwap && (
+                <button
+                  onClick={onSwap}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl font-medium bg-white text-morandi-purple-700 border border-morandi-purple-300 hover:bg-morandi-purple-50 shadow-sm whitespace-nowrap"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  换一个
+                </button>
+              )}
+            </div>
             {challenge.canMakeup && onMakeup && (
               <button
                 onClick={onMakeup}
