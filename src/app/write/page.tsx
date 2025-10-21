@@ -351,6 +351,20 @@ function WriteContent() {
       // 如果在编辑已存在的作文，则把反馈和行动项作为新版本保存
       if (editingEssayId) {
         addEssayVersion(editingEssayId, content, aiFeedback, generatedActionItems);
+      } else {
+        // 如果是新作文，先保存作文再创建第一个版本
+        const newEssay = {
+          title,
+          content,
+          toolUsed: selectedTool,
+          feedback: aiFeedback,
+          actionItems: generatedActionItems,
+        };
+        const essayId = addEssay(newEssay);
+        // 立即为新作文创建第一个版本
+        addEssayVersion(essayId, content, aiFeedback, generatedActionItems);
+        // 设置编辑状态，以便后续保存操作能正确更新作文
+        setEditingEssayId(essayId);
       }
 
       setIsFeedbackModalOpen(true);

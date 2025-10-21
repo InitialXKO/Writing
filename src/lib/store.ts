@@ -20,7 +20,7 @@ interface AppState {
 
   // 作文管理
   essays: Essay[];
-  addEssay: (essay: Omit<Essay, 'id' | 'createdAt'>) => void;
+  addEssay: (essay: Omit<Essay, 'id' | 'createdAt'>) => string;
   updateEssay: (id: string, updates: Partial<Essay>) => void;
   deleteEssay: (id: string) => void;
   addEssayVersion: (essayId: string, content: string, feedback?: string, actionItems?: ActionItem[]) => void; // 添加作文版本
@@ -294,6 +294,7 @@ export const useAppStore = create<AppState>()(
             }
           };
         });
+        return essay.id; // 返回新创建的essay的ID
       },
 
       updateEssay: (id, updates) => {
