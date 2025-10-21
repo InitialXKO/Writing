@@ -404,10 +404,10 @@ export default function HomePage() {
       </div>
 
       {/* 底部导航 */}
-      <div className="max-w-4xl mx-auto flex justify-center gap-8 py-8">
+      <div className="max-w-4xl mx-auto flex justify-center gap-8 py-8 flex-wrap gap-y-4">
         <Link
           href="/write"
-          className="flex items-center gap-2 text-morandi-gray-600 hover:text-morandi-blue-600 transition-colors p-3 rounded-xl hover:bg-morandi-blue-50"
+          className="flex items-center gap-2 text-morandi-gray-600 hover:text-morandi-blue-600 transition-colors p-3 rounded-xl hover:bg-morandi-blue-50 whitespace-nowrap"
         >
           <div className="p-2 bg-morandi-blue-100 rounded-lg">
             <BookOpen className="w-5 h-5 text-morandi-blue-600" />
@@ -417,7 +417,7 @@ export default function HomePage() {
 
         <Link
           href="/essays"
-          className="flex items-center gap-2 text-morandi-gray-600 hover:text-morandi-blue-600 transition-colors p-3 rounded-xl hover:bg-morandi-blue-50"
+          className="flex items-center gap-2 text-morandi-gray-600 hover:text-morandi-blue-600 transition-colors p-3 rounded-xl hover:bg-morandi-blue-50 whitespace-nowrap"
         >
           <div className="p-2 bg-morandi-purple-100 rounded-lg">
             <Library className="w-5 h-5 text-morandi-purple-600" />
@@ -427,7 +427,7 @@ export default function HomePage() {
 
         <Link
           href="/settings"
-          className="flex items-center gap-2 text-morandi-gray-600 hover:text-morandi-blue-600 transition-colors p-3 rounded-xl hover:bg-morandi-blue-50"
+          className="flex items-center gap-2 text-morandi-gray-600 hover:text-morandi-blue-600 transition-colors p-3 rounded-xl hover:bg-morandi-blue-50 whitespace-nowrap"
         >
           <div className="p-2 bg-morandi-green-100 rounded-lg">
             <Settings className="w-5 h-5 text-morandi-green-600" />
