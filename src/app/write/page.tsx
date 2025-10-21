@@ -622,7 +622,7 @@ function WriteContent() {
               </p>
 
               <button
-                onClick={handleAIReview}
+                onClick={() => handleAIReview()}
                 disabled={isGenerating}
                 className="w-full bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 hover:from-morandi-green-600 hover:to-morandi-green-700 text-white font-medium py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md hover:shadow-lg"
               >
