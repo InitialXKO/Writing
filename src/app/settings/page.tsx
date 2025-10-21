@@ -324,11 +324,11 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-morandi-gray-700 mb-2">
                 模型
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <select
                   value={model}
                   onChange={(e) => setModelAndSave(e.target.value)}
-                  className="flex-1 px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white shadow-sm"
+                  className="w-full sm:flex-1 min-w-0 max-w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white shadow-sm"
                 >
                   {models.length > 0 ? (
                     models.map((modelName) => (
@@ -351,7 +351,7 @@ export default function SettingsPage() {
                 <button
                   onClick={fetchModels}
                   disabled={isFetchingModels || !apiKey}
-                  className="px-4 py-3 bg-morandi-blue-500 text-white rounded-xl hover:bg-morandi-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  className="w-full sm:w-auto whitespace-nowrap flex-shrink-0 px-4 py-3 bg-morandi-blue-500 text-white rounded-xl hover:bg-morandi-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
                 >
                   {isFetchingModels ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
