@@ -384,13 +384,14 @@ function WriteContent() {
       if (editingEssayId) {
         // 只有当内容有变化时才创建新版本
         if (contentToReview !== originalContent) {
-          // 传递父版本ID：如果是编辑特定版本，使用该版本ID；否则使用主版本ID（第一个版本的ID）
+          // 传递父版本ID：如果是编辑特定版本，使用该版本ID作为父版本；否则使用最新版本作为父版本
           let parentId = editingVersionId || undefined;
           if (!editingVersionId && editingEssayId) {
-            // 基于主版本编辑，使用第一个版本作为父版本
+            // 基于当前作文内容编辑，使用最新版本作为父版本
             const essay = essays.find(e => e.id === editingEssayId);
             if (essay && essay.versions && essay.versions.length > 0) {
-              parentId = essay.versions[0].id;
+              // 使用最新的版本作为父版本
+              parentId = essay.versions[essay.versions.length - 1].id;
             }
           }
           addEssayVersion(editingEssayId, content, aiFeedback, generatedActionItems, parentId);
