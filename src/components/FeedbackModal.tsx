@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, CheckCircle, Edit3, Save, RotateCcw, Sparkles } from 'lucide-react';
 import { ActionItem } from '@/types';
+import ReactMarkdown from 'react-markdown';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -154,8 +155,12 @@ export default function FeedbackModal({ isOpen, onClose, content, feedback, acti
               </h3>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
-              <div className="text-morandi-gray-700 whitespace-pre-wrap break-words mb-6">
-                {feedback || '暂无批改意见'}
+              <div className="text-morandi-gray-700 break-words mb-6">
+                <div className="prose prose-sm max-w-none">
+                  <ReactMarkdown>
+                    {String(feedback || '暂无批改意见')}
+                  </ReactMarkdown>
+                </div>
               </div>
 
               {/* 行动项区域 */}

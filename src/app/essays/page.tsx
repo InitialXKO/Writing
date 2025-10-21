@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Essay, EssayVersion } from '@/types';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import ReactMarkdown from 'react-markdown';
 
 export default function EssaysPage() {
   const { essays, deleteEssay } = useAppStore();
@@ -259,7 +260,11 @@ export default function EssaysPage() {
                           {version.feedback && (
                             <div className="mt-2 text-sm text-morandi-gray-600 bg-white p-2 rounded">
                               <span className="font-medium">批改意见：</span>
-                              {version.feedback.substring(0, 100)}...
+                              <div className="inline prose prose-sm max-w-none">
+                                <ReactMarkdown>
+                                  {String(version.feedback?.substring(0, 100) || '') + '...'}
+                                </ReactMarkdown>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -294,8 +299,10 @@ export default function EssaysPage() {
                     批改意见
                   </h3>
                   <div className="bg-morandi-green-50 p-4 rounded-lg border border-morandi-green-200">
-                    <div className="text-morandi-gray-700 whitespace-pre-wrap">
-                      {getCurrentFeedback()}
+                    <div className="text-morandi-gray-700 prose prose-sm max-w-none">
+                      <ReactMarkdown>
+                        {String(getCurrentFeedback() || '')}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 </div>
