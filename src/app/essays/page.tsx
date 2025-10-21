@@ -62,7 +62,7 @@ export default function EssaysPage() {
   const getCurrentTitle = () => {
     if (selectedVersion && selectedEssay) {
       const versionIndex = selectedEssay.versions?.findIndex(v => v.id === selectedVersion.id);
-      return `${selectedEssay.title} - 版本 ${versionIndex !== undefined && versionIndex >= 0 ? selectedEssay.versions!.length - versionIndex : 'N/A'}`;
+      return `${selectedEssay.title} - 版本 ${versionIndex !== undefined && versionIndex >= 0 ? versionIndex + 1 : 'N/A'}`;
     }
     return selectedEssay?.title || '';
   };
@@ -239,7 +239,7 @@ export default function EssaysPage() {
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-morandi-gray-700">
-                                版本 {selectedEssay.versions!.length - index}
+                                版本 {index + 1}
                               </span>
                               <span className="text-xs text-morandi-gray-500">
                                 {(typeof version.createdAt === 'string' ? new Date(version.createdAt) : version.createdAt).toLocaleString()}

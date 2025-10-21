@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { X, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, CheckCircle, Edit3, Save, RotateCcw, Sparkles } from 'lucide-react';
 import { ActionItem } from '@/types';
 
 interface FeedbackModalProps {
@@ -11,9 +11,15 @@ interface FeedbackModalProps {
   feedback: string;
   actionItems?: ActionItem[];
   onActionItemUpdate?: (id: string, completed: boolean) => void;
+  onReReview?: (newContent: string) => void; // 添加重新批改回调
+  onContentUpdate?: (newContent: string) => void; // 添加内容更新回调
 }
 
-export default function FeedbackModal({ isOpen, onClose, content, feedback, actionItems, onActionItemUpdate }: FeedbackModalProps) {
+export default function FeedbackModal({ isOpen, onClose, content, feedback, actionItems, onActionItemUpdate, onReReview, onContentUpdate }: FeedbackModalProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState(content);
+  const [isReReviewing, setIsReReviewing] = useState(false);
+
   // 防止背景滚动
   useEffect(() => {
     if (isOpen) {
@@ -27,11 +33,46 @@ export default function FeedbackModal({ isOpen, onClose, content, feedback, acti
     };
   }, [isOpen]);
 
+  // 当content prop变化时，更新editedContent状态
+  useEffect(() => {
+    setEditedContent(content);
+  }, [content]);
+
   if (!isOpen) return null;
 
   const handleActionItemToggle = (id: string, completed: boolean) => {
     if (onActionItemUpdate) {
       onActionItemUpdate(id, completed);
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if (onContentUpdate) {
+      onContentUpdate(editedContent);
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditedContent(content);
+    setIsEditing(false);
+  };
+
+  const handleReReview = async () => {
+    // 如果正在编辑，先保存编辑内容
+    if (isEditing && onContentUpdate) {
+      onContentUpdate(editedContent);
+      setIsEditing(false);
+    }
+
+    // 使用最新的content进行重新批改
+    if (onReReview) {
+      setIsReReviewing(true);
+      try {
+        await onReReview(content);
+      } finally {
+        setIsReReviewing(false);
+      }
     }
   };
 
@@ -54,16 +95,53 @@ export default function FeedbackModal({ isOpen, onClose, content, feedback, acti
         <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
           {/* 原文区域 */}
           <div className="flex-1 border-r border-morandi-gray-200 flex flex-col">
-            <div className="p-4 bg-morandi-blue-50 border-b border-morandi-gray-200">
+            <div className="p-4 bg-morandi-blue-50 border-b border-morandi-gray-200 flex items-center justify-between">
               <h3 className="font-bold text-morandi-blue-800 flex items-center gap-2">
                 <div className="w-3 h-3 bg-morandi-blue-500 rounded-full"></div>
                 你的原文
               </h3>
+              <div className="flex gap-2">
+                {isEditing ? (
+                  <>
+                    <button
+                      onClick={handleSaveEdit}
+                      className="flex items-center gap-1 px-3 py-1 bg-morandi-green-500 hover:bg-morandi-green-600 text-white text-sm rounded-lg transition-colors"
+                    >
+                      <Save className="w-4 h-4" />
+                      保存
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="flex items-center gap-1 px-3 py-1 bg-morandi-gray-500 hover:bg-morandi-gray-600 text-white text-sm rounded-lg transition-colors"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      取消
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-1 px-3 py-1 bg-morandi-blue-500 hover:bg-morandi-blue-600 text-white text-sm rounded-lg transition-colors"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    编辑
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
-              <pre className="whitespace-pre-wrap font-sans text-morandi-gray-700">
-                {content}
-              </pre>
+              {isEditing ? (
+                <textarea
+                  value={editedContent}
+                  onChange={(e) => setEditedContent(e.target.value)}
+                  className="w-full h-full min-h-[300px] p-4 border border-morandi-gray-300 rounded-lg font-sans text-morandi-gray-700 focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500"
+                  placeholder="在此编辑你的作文..."
+                />
+              ) : (
+                <pre className="whitespace-pre-wrap font-sans text-morandi-gray-700">
+                  {content}
+                </pre>
+              )}
             </div>
           </div>
 
@@ -133,7 +211,26 @@ export default function FeedbackModal({ isOpen, onClose, content, feedback, acti
         </div>
 
         {/* 底部按钮 */}
-        <div className="p-6 border-t border-morandi-gray-200 flex justify-end">
+        <div className="p-6 border-t border-morandi-gray-200 flex justify-end gap-3">
+          {onReReview && (
+            <button
+              onClick={handleReReview}
+              disabled={isReReviewing || isEditing}
+              className="flex items-center gap-2 px-6 py-3 bg-morandi-green-500 hover:bg-morandi-green-600 disabled:bg-morandi-gray-400 text-white font-medium rounded-xl transition-colors"
+            >
+              {isReReviewing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  重新批改中...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  重新批改
+                </>
+              )}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="px-6 py-3 bg-morandi-blue-500 hover:bg-morandi-blue-600 text-white font-medium rounded-xl transition-colors"

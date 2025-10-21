@@ -193,8 +193,25 @@ function WriteContent() {
     saveEssay();
   };
 
-  const handleAIReview = async () => {
-    if (!content.trim()) {
+  const handleAIReview = async (reviewContent?: string) => {
+    // 处理可能意外传入的事件对象
+    let contentToReview: string;
+    if (reviewContent === undefined || reviewContent === null) {
+      contentToReview = content;
+    } else if (typeof reviewContent === 'string') {
+      contentToReview = reviewContent;
+    } else {
+      // 如果传入的是事件对象或其他非字符串类型，使用当前content
+      contentToReview = content;
+    }
+
+    // 确保contentToReview是字符串类型
+    if (typeof contentToReview !== 'string') {
+      showError(`作文内容类型错误: content类型=${typeof content}, contentToReview类型=${typeof contentToReview}`);
+      return;
+    }
+
+    if (!contentToReview.trim()) {
       showWarning('请先填写作文内容');
       return;
     }
@@ -232,6 +249,11 @@ function WriteContent() {
       // 构建AI批改提示词
       let prompt = `你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。请根据以下内容对学生的作文进行批改：\n\n`;
 
+      // 添加批改上下文标识
+      if (editingEssayId) {
+        prompt += `【作文批改】这是对已有作文的批改，请关注学生的写作进展和改进情况。\n\n`;
+      }
+
       // 添加写作工具信息（如果是自由写作则特殊处理）
       if (isFreeWriting) {
         prompt += `写作模式：自由写作 - 学生选择不使用特定写作工具\n\n`;
@@ -254,12 +276,16 @@ function WriteContent() {
       prompt += `7. 注意句式节奏变化\n\n`;
 
       // 添加原文和修改后的内容
-      if (originalContent && originalContent !== content) {
+      if (originalContent && originalContent !== contentToReview) {
         prompt += `原文：\n${originalContent}\n\n`;
-        prompt += `修改后的文章：\n${content}\n\n`;
-        prompt += `请对比原文和修改后的文章，指出修改的优点和可以进一步改进的地方。\n\n`;
+        prompt += `修改后的文章：\n${contentToReview}\n\n`;
+        if (editingEssayId) {
+          prompt += `请对比原文和修改后的文章，关注学生的写作进展和对写作技巧的掌握情况，指出修改的优点和可以进一步改进的地方。\n\n`;
+        } else {
+          prompt += `请对比原文和修改后的文章，指出修改的优点和可以进一步改进的地方。\n\n`;
+        }
       } else {
-        prompt += `学生作文：\n${content}\n\n`;
+        prompt += `学生作文：\n${contentToReview}\n\n`;
       }
 
       // 根据是否为自由写作调整反馈格式
@@ -285,10 +311,16 @@ function WriteContent() {
 3. [其他方面的建议，如结构、语言等]`;
       }
 
-      if (originalContent && originalContent !== content) {
-        prompt += `\n\n🔄 修改对比：
+      if (originalContent && originalContent !== contentToReview) {
+        if (editingEssayId) {
+          prompt += `\n\n🔄 修改对比：
+1. [关注学生的写作进展和对写作技巧的掌握情况，指出修改后改进的地方]
+2. [建议可以进一步优化的地方，帮助学生持续提升]`;
+        } else {
+          prompt += `\n\n🔄 修改对比：
 1. [指出修改后改进的地方]
 2. [建议可以进一步优化的地方]`;
+        }
       }
 
       prompt += `\n\n💡 写作小贴士：
@@ -389,6 +421,11 @@ function WriteContent() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleReReview = async (newContent: string) => {
+    // 调用AI批改函数进行重新批改，使用传递的内容
+    await handleAIReview(newContent);
   };
 
   const selectedToolData = writingTools.find(t => t.id === selectedTool);
@@ -615,6 +652,8 @@ function WriteContent() {
         feedback={feedback}
         actionItems={actionItems}
         onActionItemUpdate={handleActionItemUpdate}
+        onReReview={handleReReview}
+        onContentUpdate={setContent}
       />
 
       {/* 确认对话框 */}
