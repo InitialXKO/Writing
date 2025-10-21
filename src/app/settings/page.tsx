@@ -469,6 +469,13 @@ export default function SettingsPage() {
           </div>
         </section>
       </div>
+      <ConfirmDialog
+        isOpen={isConfirmDialogOpen}
+        title={confirmDialogProps.title}
+        message={confirmDialogProps.message}
+        onConfirm={handleConfirmReset}
+        onCancel={handleCancelReset}
+      />
     </div>
   );
 }
