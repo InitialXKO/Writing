@@ -23,7 +23,7 @@ interface AppState {
   addEssay: (essay: Omit<Essay, 'id' | 'createdAt'>) => string;
   updateEssay: (id: string, updates: Partial<Essay>) => void;
   deleteEssay: (id: string) => void;
-  addEssayVersion: (essayId: string, content: string, feedback?: string, actionItems?: ActionItem[]) => void; // 添加作文版本
+  addEssayVersion: (essayId: string, content: string, feedback?: string, actionItems?: ActionItem[], parentId?: string) => void; // 添加作文版本
   // 新增行动项更新方法
   updateActionItem: (essayId: string, versionId: string | null, actionItemId: string, completed: boolean) => void;
 
@@ -312,7 +312,7 @@ export const useAppStore = create<AppState>()(
       },
 
       // 添加新版本到作文
-      addEssayVersion: (essayId, content, feedback, actionItems) => {
+      addEssayVersion: (essayId, content, feedback, actionItems, parentId) => {
         set(state => ({
           essays: state.essays.map(essay => {
             if (essay.id === essayId) {
@@ -321,7 +321,8 @@ export const useAppStore = create<AppState>()(
                 content,
                 feedback,
                 createdAt: new Date(),
-                actionItems: actionItems || []
+                actionItems: actionItems || [],
+                parentId: parentId || undefined
               };
               return {
                 ...essay,

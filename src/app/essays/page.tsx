@@ -1,20 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import { ArrowLeft, Edit3, Trash2, History, BookOpen, Sparkles } from 'lucide-react';
+import { ArrowLeft, Edit3, Trash2, History, BookOpen, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { Essay, EssayVersion } from '@/types';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ReactMarkdown from 'react-markdown';
+import SimplifiedVersionHistory from '@/components/SimplifiedVersionHistory';
 
 export default function EssaysPage() {
   const { essays, deleteEssay } = useAppStore();
   const { showSuccess, showError } = useNotificationContext();
   const [selectedEssay, setSelectedEssay] = useState<Essay | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<EssayVersion | null>(null);
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState<boolean>(false);
   const [essayToDelete, setEssayToDelete] = useState<string | null>(null);
 
   const handleDeleteEssay = (id: string) => {
@@ -67,6 +68,7 @@ export default function EssaysPage() {
     }
     return selectedEssay?.title || '';
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-morandi-gray-100 to-white">
@@ -217,61 +219,11 @@ export default function EssaysPage() {
 
               {/* 版本历史 */}
               {selectedEssay.versions && selectedEssay.versions.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="font-bold text-morandi-gray-800 mb-3 flex items-center gap-2">
-                    <div className="p-1 bg-morandi-green-100 rounded-md">
-                      <History className="w-4 h-4 text-morandi-green-600" />
-                    </div>
-                    修改历史
-                  </h3>
-                  <div className="space-y-2">
-                    {selectedEssay.versions.map((version, index) => {
-                      const isSelected = selectedVersion?.id === version.id;
-                      return (
-                        <div
-                          key={version.id}
-                          className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                            isSelected
-                              ? 'border-morandi-blue-500 bg-morandi-blue-50'
-                              : 'border-morandi-gray-200 hover:border-morandi-blue-300 hover:bg-morandi-blue-50'
-                          }`}
-                          onClick={() => setSelectedVersion(version)}
-                        >
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-morandi-gray-700">
-                                版本 {index + 1}
-                              </span>
-                              <span className="text-xs text-morandi-gray-500">
-                                {(typeof version.createdAt === 'string' ? new Date(version.createdAt) : version.createdAt).toLocaleString()}
-                              </span>
-                            </div>
-                            <div className="flex gap-2">
-                              <Link
-                                href={`/write?essayId=${selectedEssay.id}&versionId=${version.id}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-sm text-morandi-blue-600 hover:text-morandi-blue-800 flex items-center gap-1"
-                              >
-                                <Edit3 className="w-3 h-3" />
-                                编辑
-                              </Link>
-                            </div>
-                          </div>
-                          {version.feedback && (
-                            <div className="mt-2 text-sm text-morandi-gray-600 bg-white p-2 rounded">
-                              <span className="font-medium">批改意见：</span>
-                              <div className="inline prose prose-sm max-w-none">
-                                <ReactMarkdown>
-                                  {String(version.feedback?.substring(0, 100) || '') + '...'}
-                                </ReactMarkdown>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                <SimplifiedVersionHistory
+                  essay={selectedEssay}
+                  selectedVersion={selectedVersion}
+                  onVersionSelect={setSelectedVersion}
+                />
               )}
 
               {/* 内容区域 */}

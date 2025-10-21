@@ -66,7 +66,7 @@ export default function FeedbackModal({ isOpen, onClose, content, feedback, acti
       setIsEditing(false);
     }
 
-    // 使用最新的content进行重新批改
+    // 重新批改
     if (onReReview) {
       setIsReReviewing(true);
       try {

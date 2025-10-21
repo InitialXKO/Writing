@@ -113,6 +113,8 @@ export interface EssayVersion {
   createdAt: Date;
   // 新增行动项
   actionItems?: ActionItem[];
+  // 新增父版本ID，支持树状版本历史
+  parentId?: string;
 }
 
 // 作文数据

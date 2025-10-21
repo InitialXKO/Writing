@@ -119,8 +119,8 @@ function WriteContent() {
     if (editingEssayId) {
       // 如果是编辑已存在的作文，添加新版本
       if (editingVersionId) {
-        // 如果是编辑特定版本，保存为新版本
-        addEssayVersion(editingEssayId, content, feedback, actionItems);
+        // 如果是编辑特定版本，保存为新版本，基于该版本创建分支
+        addEssayVersion(editingEssayId, content, feedback, actionItems, editingVersionId);
         showSuccess('新版本已保存到作文中');
       } else {
         // 如果是编辑当前版本，更新作文
@@ -382,7 +382,25 @@ function WriteContent() {
 
       // 如果在编辑已存在的作文，则把反馈和行动项作为新版本保存
       if (editingEssayId) {
-        addEssayVersion(editingEssayId, content, aiFeedback, generatedActionItems);
+        // 只有当内容有变化时才创建新版本
+        if (contentToReview !== originalContent) {
+          // 传递父版本ID：如果是编辑特定版本，使用该版本ID；否则使用主版本ID（第一个版本的ID）
+          let parentId = editingVersionId || undefined;
+          if (!editingVersionId && editingEssayId) {
+            // 基于主版本编辑，使用第一个版本作为父版本
+            const essay = essays.find(e => e.id === editingEssayId);
+            if (essay && essay.versions && essay.versions.length > 0) {
+              parentId = essay.versions[0].id;
+            }
+          }
+          addEssayVersion(editingEssayId, content, aiFeedback, generatedActionItems, parentId);
+        } else {
+          // 如果内容没有变化，只更新当前作文的反馈和行动项
+          updateEssay(editingEssayId, {
+            feedback: aiFeedback,
+            actionItems: generatedActionItems,
+          });
+        }
       } else {
         // 如果是新作文，先保存作文再创建第一个版本
         const newEssay = {
@@ -393,7 +411,7 @@ function WriteContent() {
           actionItems: generatedActionItems,
         };
         const essayId = addEssay(newEssay);
-        // 立即为新作文创建第一个版本
+        // 立即为新作文创建第一个版本（没有父版本）
         addEssayVersion(essayId, content, aiFeedback, generatedActionItems);
         // 设置编辑状态，以便后续保存操作能正确更新作文
         setEditingEssayId(essayId);
