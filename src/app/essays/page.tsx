@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAppStore } from '@/lib/store';
+import { useAppStore, getCurrentEssayContent } from '@/lib/store';
 import { ArrowLeft, Edit3, Trash2, History, BookOpen, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { Essay, EssayVersion } from '@/types';
@@ -49,7 +49,7 @@ export default function EssaysPage() {
     if (selectedVersion) {
       return selectedVersion.content;
     }
-    return selectedEssay?.content || '';
+    return selectedEssay ? getCurrentEssayContent(selectedEssay) : '';
   };
 
   // 获取当前显示的反馈（选中的版本或当前作文）
@@ -144,7 +144,7 @@ export default function EssaysPage() {
                       <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-morandi-gray-800 truncate">{essay.title}</h3>
                         <p className="text-sm text-morandi-gray-600 mt-1 truncate">
-                          {essay.content.substring(0, 50)}...
+                          {getCurrentEssayContent(essay).substring(0, 50)}...
                         </p>
                         <div className="flex items-center gap-2 mt-2 text-xs text-morandi-gray-500">
                           <span>{(typeof essay.createdAt === 'string' ? new Date(essay.createdAt) : essay.createdAt).toLocaleDateString()}</span>

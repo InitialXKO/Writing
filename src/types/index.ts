@@ -126,6 +126,8 @@ export interface Essay {
   createdAt: Date;
   feedback?: string;
   versions?: EssayVersion[]; // 历史版本
+  // 新增当前版本ID，指向最新版本
+  currentVersionId?: string;
   // 新增行动项
   actionItems?: ActionItem[];
 }
