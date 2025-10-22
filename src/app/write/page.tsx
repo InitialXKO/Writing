@@ -42,18 +42,18 @@ const findTextPosition = (content: string, text: string): { before: string; afte
   };
 };
 
-// 计算两个版本之间的文本差异（简单实现）
-const calculateTextDiff = (oldContent: string, newContent: string): { added: string[]; removed: string[] } => {
+// 计算两个版本之间的文本差异（增强实现）
+const calculateTextDiff = (oldContent: string, newContent: string, useDetailedDiff: boolean = true): { added: string[]; removed: string[]; modified: string[]; shouldUseFullContent: boolean } => {
   if (!oldContent && !newContent) {
-    return { added: [], removed: [] };
+    return { added: [], removed: [], modified: [], shouldUseFullContent: false };
   }
 
   if (!oldContent) {
-    return { added: [newContent], removed: [] };
+    return { added: [newContent], removed: [], modified: [], shouldUseFullContent: true };
   }
 
   if (!newContent) {
-    return { added: [], removed: [oldContent] };
+    return { added: [], removed: [oldContent], modified: [], shouldUseFullContent: true };
   }
 
   // 简单的行级差异检测
@@ -62,6 +62,12 @@ const calculateTextDiff = (oldContent: string, newContent: string): { added: str
 
   const added: string[] = [];
   const removed: string[] = [];
+  const modified: string[] = [];
+
+  // 如果不需要详细差异，直接返回
+  if (!useDetailedDiff) {
+    return { added, removed, modified, shouldUseFullContent: true };
+  }
 
   // 找出新增的行
   newLines.forEach(line => {
@@ -79,7 +85,24 @@ const calculateTextDiff = (oldContent: string, newContent: string): { added: str
     }
   });
 
-  return { added, removed };
+  // 简单的修改检测（在同一位置的行如果有变化则视为修改）
+  for (let i = 0; i < Math.min(oldLines.length, newLines.length); i++) {
+    if (oldLines[i] !== newLines[i] && oldLines[i].trim() && newLines[i].trim()) {
+      // 只取行的前20个字符作为标识
+      modified.push(`行${i + 1}: "${oldLines[i].substring(0, 10)}" → "${newLines[i].substring(0, 10)}"`);
+    }
+  }
+
+  // 计算差异描述的总长度
+  const diffDescriptionLength =
+    added.join('').length +
+    removed.join('').length +
+    modified.join('').length;
+
+  // 如果差异描述长度接近或大于原文长度，建议使用完整内容
+  const shouldUseFullContent = diffDescriptionLength >= oldContent.length * 0.8;
+
+  return { added, removed, modified, shouldUseFullContent };
 };
 
 // 将文本分割成段落作为关键位置
@@ -101,7 +124,11 @@ const splitTextIntoSegments = (content: string): string[] => {
 const generatePositionDescription = (content: string, target: string): string => {
   if (!content || !target) return '[未知位置]';
 
-  // 使用splitTextIntoSegments将文本分割成关键位置
+  // 使用findTextPosition获取精确的前后上下文
+  const position = findTextPosition(content, target);
+  if (!position) return '[位置未找到]';
+
+  // 使用splitTextIntoSegments将文本分割成关键位置以获得更自然的描述
   const segments = splitTextIntoSegments(content);
 
   // 找到目标内容在哪个段落
@@ -113,7 +140,18 @@ const generatePositionDescription = (content: string, target: string): string =>
     }
   }
 
-  if (targetIndex === -1) return '[位置未找到]';
+  if (targetIndex === -1) {
+    // 如果在段落中找不到，使用findTextPosition的结果
+    if (position.before === '[开头]' && position.after === '[结尾]') {
+      return '[开头部分]';
+    } else if (position.before === '[开头]') {
+      return `"${position.after.substring(0, 15)}"之前`;
+    } else if (position.after === '[结尾]') {
+      return `"${position.before.substring(0, 15)}"之后`;
+    } else {
+      return `"${position.before.substring(0, 15)}"和"${position.after.substring(0, 15)}"之间`;
+    }
+  }
 
   // 生成位置描述
   const beforeSegment = targetIndex > 0 ? segments[targetIndex - 1].substring(0, 15) : '[开头]';
@@ -284,51 +322,67 @@ const generateSimplifiedVersionHistory = (essay: Essay): string => {
       : i;
 
     if (parentVersion) {
-      // 使用更精确的差异检测
-      const removedItems: string[] = [];
-      const addedItems: string[] = [];
+      // 使用calculateTextDiff计算差异
+      const diff = calculateTextDiff(parentVersion.content, currentVersion.content);
 
-      // 简单的行级差异检测
-      const parentLines = parentVersion.content.split('\n').filter(line => line.trim());
-      const currentLines = currentVersion.content.split('\n').filter(line => line.trim());
-
-      // 找出删除的行
-      parentLines.forEach(line => {
-        if (!currentLines.includes(line) && line.trim()) {
-          // 为删除的行生成位置描述
-          const positionDesc = generatePositionDescription(parentVersion.content, line.substring(0, 20));
-          removedItems.push(`${positionDesc}删除"${line.substring(0, 20) + (line.length > 20 ? '...' : '')}"`);
-        }
-      });
-
-      // 找出新增的行
-      currentLines.forEach(line => {
-        if (!parentLines.includes(line) && line.trim()) {
-          // 为新增的行生成位置描述
-          const positionDesc = generatePositionDescription(currentVersion.content, line.substring(0, 20));
-          addedItems.push(`${positionDesc}新增"${line.substring(0, 20) + (line.length > 20 ? '...' : '')}"`);
-        }
-      });
-
-      let diffDescription = '';
-      if (removedItems.length > 0) {
-        diffDescription += removedItems.join('，');
-        if (removedItems.length > 1) {
-          diffDescription += `等${removedItems.length}处`;
-        }
-      }
-      if (addedItems.length > 0) {
-        if (diffDescription) diffDescription += '，';
-        diffDescription += addedItems.join('，');
-        if (addedItems.length > 1) {
-          diffDescription += `等${addedItems.length}处`;
-        }
-      }
-
-      if (diffDescription) {
-        result += `- 版本${i + 1}：基于版本${parentOrder}，${diffDescription}\n`;
+      // 如果差异描述长度接近或大于原文长度，直接使用完整内容
+      if (diff.shouldUseFullContent) {
+        result += `- 版本${i + 1}：基于版本${parentOrder}，内容有较大变化\n${currentVersion.content}\n`;
       } else {
-        result += `- 版本${i + 1}：基于版本${parentOrder}\n`;
+        const removedItems: string[] = [];
+        const addedItems: string[] = [];
+        const modifiedItems: string[] = [];
+
+        // 处理删除的行
+        diff.removed.forEach(removedLine => {
+          if (removedLine.trim()) {
+            // 为删除的行生成位置描述
+            const positionDesc = generatePositionDescription(parentVersion.content, removedLine.substring(0, 20));
+            removedItems.push(`${positionDesc}删除"${removedLine.substring(0, 20) + (removedLine.length > 20 ? '...' : '')}"`);
+          }
+        });
+
+        // 处理新增的行
+        diff.added.forEach(addedLine => {
+          if (addedLine.trim()) {
+            // 为新增的行生成位置描述
+            const positionDesc = generatePositionDescription(currentVersion.content, addedLine.substring(0, 20));
+            addedItems.push(`${positionDesc}新增"${addedLine.substring(0, 20) + (addedLine.length > 20 ? '...' : '')}"`);
+          }
+        });
+
+        // 处理修改的行
+        diff.modified.forEach(modifiedLine => {
+          modifiedItems.push(`修改${modifiedLine}`);
+        });
+
+        let diffDescription = '';
+        if (removedItems.length > 0) {
+          diffDescription += removedItems.join('，');
+          if (removedItems.length > 1) {
+            diffDescription += `等${removedItems.length}处`;
+          }
+        }
+        if (addedItems.length > 0) {
+          if (diffDescription) diffDescription += '，';
+          diffDescription += addedItems.join('，');
+          if (addedItems.length > 1) {
+            diffDescription += `等${addedItems.length}处`;
+          }
+        }
+        if (modifiedItems.length > 0) {
+          if (diffDescription) diffDescription += '，';
+          diffDescription += modifiedItems.join('，');
+          if (modifiedItems.length > 1) {
+            diffDescription += `等${modifiedItems.length}处`;
+          }
+        }
+
+        if (diffDescription) {
+          result += `- 版本${i + 1}：基于版本${parentOrder}，${diffDescription}\n`;
+        } else {
+          result += `- 版本${i + 1}：基于版本${parentOrder}\n`;
+        }
       }
     } else {
       result += `- 版本${i + 1}：基于版本${parentOrder}\n`;
