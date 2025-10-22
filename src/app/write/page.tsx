@@ -25,21 +25,6 @@ const getTimestamp = (value: Date | string): number => {
   return Number.isNaN(time) ? 0 : time;
 };
 
-// 将文本分割成段落作为关键位置
-const splitTextIntoSegments = (content: string): string[] => {
-  if (!content) return [];
-
-  // 按段落分割（两个换行符）
-  const paragraphs = content.split('\n\n').filter(p => p.trim());
-
-  // 如果段落太少，按单个换行符分割
-  if (paragraphs.length < 3) {
-    return content.split('\n').filter(p => p.trim());
-  }
-
-  return paragraphs;
-};
-
 // 在文本中找到指定内容的位置
 const findTextPosition = (content: string, text: string): { before: string; after: string } | null => {
   if (!content || !text) return null;
@@ -96,19 +81,6 @@ const calculateTextDiff = (oldContent: string, newContent: string): { added: str
 
   return { added, removed };
 };
-
-// 生成内容位置的自然语言描述
-const generatePositionDescription = (content: string, target: string): string => {
-  if (!content || !target) return '[未知位置]';
-
-  const position = findTextPosition(content, target);
-  if (!position) return '[位置未找到]';
-
-  // 简化位置描述
-  const before = position.before.substring(0, 15) + (position.before.length > 15 ? '...' : '');
-  const after = position.after.substring(0, 15) + (position.after.length > 15 ? '...' : '');
-
-  return `"${before}"和"${after}"之间`;
 };
 
 const formatDateTime = (value: Date | string): string => {
@@ -189,7 +161,7 @@ const formatVersionNode = (node: VersionNode, nodeMap: Map<string, VersionNode>,
   return result;
 };
 
-// 限制版本历史数量以避免超出模型上下文限制，默认最多10个版本
+// 获取最新版本信息（保留用于向后兼容）
 const prepareEssayHistoryData = (essay: Essay, maxVersions = 10) => {
   let versions = essay.versions ?? [];
 
@@ -208,9 +180,6 @@ const prepareEssayHistoryData = (essay: Essay, maxVersions = 10) => {
       .slice(0, maxVersions);
   }
 
-  const { roots, nodeMap } = buildVersionNodes(versions);
-  const formattedHistory = roots.map(root => formatVersionNode(root, nodeMap)).join('\n');
-
   const latestVersion = versions.reduce((latest, current) => {
     const latestTime = getTimestamp(latest.createdAt);
     const currentTime = getTimestamp(current.createdAt);
@@ -220,12 +189,12 @@ const prepareEssayHistoryData = (essay: Essay, maxVersions = 10) => {
     return latest;
   }, versions[0]);
 
-  const latestOrder = nodeMap.get(latestVersion.id)?.order ?? versions.findIndex(v => v.id === latestVersion.id) + 1;
+  const latestOrder = versions.findIndex(v => v.id === latestVersion.id) + 1;
 
   return {
     latestLabel: `版本 ${latestOrder}`,
     latestContent: latestVersion.content,
-    formattedHistory,
+    formattedHistory: '', // 不再生成完整的格式化历史，因为我们使用了简化版本
   };
 };
 
