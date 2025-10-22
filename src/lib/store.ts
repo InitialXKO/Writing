@@ -24,6 +24,7 @@ interface AppState {
   updateEssay: (id: string, updates: Partial<Essay>) => void;
   deleteEssay: (id: string) => void;
   addEssayVersion: (essayId: string, content: string, feedback?: string, actionItems?: ActionItem[], parentId?: string) => void; // 添加作文版本
+  updateEssayVersion: (essayId: string, versionId: string, updates: Partial<EssayVersion>) => void; // 更新作文版本
   // 新增行动项更新方法
   updateActionItem: (essayId: string, versionId: string | null, actionItemId: string, completed: boolean) => void;
 
@@ -330,6 +331,24 @@ export const useAppStore = create<AppState>()(
               };
             }
             return essay;
+          })
+        }));
+      },
+
+      updateEssayVersion: (essayId, versionId, updates) => {
+        set(state => ({
+          essays: state.essays.map(essay => {
+            if (essay.id !== essayId || !essay.versions) {
+              return essay;
+            }
+            return {
+              ...essay,
+              versions: essay.versions.map(version =>
+                version.id === versionId
+                  ? { ...version, ...updates }
+                  : version
+              )
+            };
           })
         }));
       },

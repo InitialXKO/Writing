@@ -5,6 +5,7 @@ import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
 import { getActualEndpoint } from '@/lib/utils';
+import { Essay, EssayVersion } from '@/types';
 import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
@@ -13,8 +14,113 @@ import CompositionPaper from '@/components/CompositionPaper';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
+interface VersionNode extends EssayVersion {
+  order: number;
+  children: VersionNode[];
+}
+
+const getTimestamp = (value: Date | string): number => {
+  const date = value instanceof Date ? value : new Date(value);
+  const time = date.getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
+const formatDateTime = (value: Date | string): string => {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+};
+
+const buildVersionNodes = (versions: EssayVersion[]): { roots: VersionNode[]; nodeMap: Map<string, VersionNode> } => {
+  const nodeMap = new Map<string, VersionNode>();
+  versions.forEach((version, index) => {
+    nodeMap.set(version.id, {
+      ...version,
+      order: index + 1,
+      children: [],
+    });
+  });
+
+  nodeMap.forEach(node => {
+    if (node.parentId && nodeMap.has(node.parentId)) {
+      nodeMap.get(node.parentId)!.children.push(node);
+    }
+  });
+
+  const sortNodes = (nodes: VersionNode[]) => {
+    nodes.sort((a, b) => a.order - b.order);
+    nodes.forEach(child => sortNodes(child.children));
+  };
+
+  const roots: VersionNode[] = [];
+  nodeMap.forEach(node => {
+    if (!node.parentId || !nodeMap.has(node.parentId)) {
+      roots.push(node);
+    }
+  });
+
+  sortNodes(roots);
+
+  return { roots, nodeMap };
+};
+
+const formatVersionNode = (node: VersionNode, nodeMap: Map<string, VersionNode>, depth = 0): string => {
+  const indent = '  '.repeat(depth);
+  const createdAt = formatDateTime(node.createdAt);
+  const parentOrder = node.parentId ? nodeMap.get(node.parentId)?.order : undefined;
+
+  let result = `${indent}- 版本 ${node.order}`;
+  if (parentOrder) {
+    result += `（基于版本 ${parentOrder}）`;
+  }
+  if (createdAt) {
+    result += `\n${indent}  创建时间：${createdAt}`;
+  }
+
+  const indentedContent = node.content.replace(/\n/g, `\n${indent}  `);
+  result += `\n${indent}  内容：\n${indent}  ${indentedContent}`;
+
+  if (node.children.length > 0) {
+    const childrenText = node.children.map(child => formatVersionNode(child, nodeMap, depth + 1)).join('\n');
+    result += `\n${childrenText}`;
+  }
+
+  return result;
+};
+
+const prepareEssayHistoryData = (essay: Essay) => {
+  const versions = essay.versions ?? [];
+
+  if (versions.length === 0) {
+    return {
+      latestLabel: '当前内容',
+      latestContent: essay.content,
+      formattedHistory: `该作文目前只有一个版本。\n内容：\n${essay.content}`,
+    };
+  }
+
+  const { roots, nodeMap } = buildVersionNodes(versions);
+  const formattedHistory = roots.map(root => formatVersionNode(root, nodeMap)).join('\n');
+
+  const latestVersion = versions.reduce((latest, current) => {
+    const latestTime = getTimestamp(latest.createdAt);
+    const currentTime = getTimestamp(current.createdAt);
+    if (currentTime > latestTime) {
+      return current;
+    }
+    return latest;
+  }, versions[0]);
+
+  const latestOrder = nodeMap.get(latestVersion.id)?.order ?? versions.findIndex(v => v.id === latestVersion.id) + 1;
+
+  return {
+    latestLabel: `版本 ${latestOrder}`,
+    latestContent: latestVersion.content,
+    formattedHistory,
+  };
+};
+
 function WriteContent() {
-  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, progress, setDailyChallenge, updateHabitTracker } = useAppStore();
+  const { addEssay, updateEssay, addEssayVersion, updateEssayVersion, essays, aiConfig, progress, setDailyChallenge, updateHabitTracker } = useAppStore();
   const { showSuccess, showError, showWarning } = useNotificationContext();
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
@@ -37,6 +143,80 @@ function WriteContent() {
     const level = progress.levels.find(l => l.toolId === tool.id);
     return !!level?.testPassed;
   });
+
+  const runOverallReview = async (essayId: string) => {
+    if (!aiConfig?.apiKey) {
+      return;
+    }
+
+    const { essays: currentEssays } = useAppStore.getState();
+    const essay = currentEssays.find(item => item.id === essayId);
+    if (!essay) {
+      return;
+    }
+
+    const { latestLabel, latestContent, formattedHistory } = prepareEssayHistoryData(essay);
+    const endpoint = getActualEndpoint(aiConfig.baseURL);
+
+    const overallPrompt = `请作为小学六年级作文指导老师，基于自由写作的评价标准，对作文《${essay.title}》进行整体批改。请关注学生在不同版本中的进步，以及仍可提升的方向。
+
+最新版本（${latestLabel}）：
+${latestContent}
+
+完整版本历史（包含所有分支）：
+${formattedHistory}
+
+请按照以下格式输出整体反馈：
+⭐ 星星1：[引用具体亮点]
+⭐ 星星2：[引用具体亮点]
+🙏 愿望：[给出下一步改进建议]
+
+请保持温暖、鼓励的语气，同时指出持续精进的方向。`;
+
+    try {
+      const response = await fetch(`${endpoint}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${aiConfig.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: aiConfig.model || 'gpt-4',
+          messages: [
+            {
+              role: 'system',
+              content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。',
+            },
+            {
+              role: 'user',
+              content: overallPrompt,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 1500,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`整体批改请求失败: ${response.status} ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}...`);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const responseText = await response.text();
+        throw new Error(`整体批改返回非JSON响应，内容类型: ${contentType || 'unknown'}\n响应内容预览: ${responseText.substring(0, 200)}...`);
+      }
+
+      const data = await response.json();
+      const overallFeedback = data.choices[0]?.message?.content;
+      if (overallFeedback) {
+        updateEssay(essayId, { feedback: overallFeedback });
+      }
+    } catch (error) {
+      console.error('整体批改失败:', error);
+    }
+  };
 
   // 从URL参数中获取预选的工具和题材（只在组件初始化时执行一次）
   useEffect(() => {
@@ -128,8 +308,6 @@ function WriteContent() {
           title,
           content,
           toolUsed: selectedTool,
-          feedback,
-          actionItems: actionItems,
         });
         showSuccess('作文已更新');
       }
@@ -139,8 +317,6 @@ function WriteContent() {
         title,
         content,
         toolUsed: selectedTool,
-        feedback,
-        actionItems: actionItems,
       });
       showSuccess('作文已保存到我的作文中');
     }
@@ -380,42 +556,76 @@ function WriteContent() {
       const generatedActionItems = generateActionItems(aiFeedback);
       setActionItems(generatedActionItems);
 
-      // 如果在编辑已存在的作文，则把反馈和行动项作为新版本保存
+      let targetEssayId: string | null = null;
+
       if (editingEssayId) {
-        // 只有当内容有变化时才创建新版本
+        targetEssayId = editingEssayId;
+
         if (contentToReview !== originalContent) {
-          // 传递父版本ID：如果是编辑特定版本，使用该版本ID作为父版本；否则使用最新版本作为父版本
           let parentId = editingVersionId || undefined;
-          if (!editingVersionId && editingEssayId) {
-            // 基于当前作文内容编辑，使用最新版本作为父版本
-            const essay = essays.find(e => e.id === editingEssayId);
-            if (essay && essay.versions && essay.versions.length > 0) {
-              // 使用最新的版本作为父版本
-              parentId = essay.versions[essay.versions.length - 1].id;
+          if (!editingVersionId) {
+            const currentState = useAppStore.getState();
+            const currentEssay = currentState.essays.find(e => e.id === editingEssayId);
+            if (currentEssay?.versions && currentEssay.versions.length > 0) {
+              parentId = currentEssay.versions[currentEssay.versions.length - 1].id;
             }
           }
-          addEssayVersion(editingEssayId, content, aiFeedback, generatedActionItems, parentId);
+          addEssayVersion(editingEssayId, contentToReview, aiFeedback, generatedActionItems, parentId);
+
+          const updatedEssay = useAppStore.getState().essays.find(e => e.id === editingEssayId);
+          const lastVersion = updatedEssay?.versions?.[updatedEssay.versions.length - 1];
+          if (lastVersion) {
+            setEditingVersionId(lastVersion.id);
+          }
         } else {
-          // 如果内容没有变化，只更新当前作文的反馈和行动项
-          updateEssay(editingEssayId, {
-            feedback: aiFeedback,
-            actionItems: generatedActionItems,
-          });
+          const currentState = useAppStore.getState();
+          const currentEssay = currentState.essays.find(e => e.id === editingEssayId);
+          let versionIdToUpdate = editingVersionId;
+
+          if (!versionIdToUpdate && currentEssay?.versions) {
+            const matchingVersion = [...currentEssay.versions].reverse().find(version => version.content === contentToReview);
+            if (matchingVersion) {
+              versionIdToUpdate = matchingVersion.id;
+              if (!editingVersionId) {
+                setEditingVersionId(matchingVersion.id);
+              }
+            }
+          }
+
+          if (versionIdToUpdate) {
+            updateEssayVersion(editingEssayId, versionIdToUpdate, {
+              feedback: aiFeedback,
+              actionItems: generatedActionItems,
+            });
+          } else {
+            addEssayVersion(editingEssayId, contentToReview, aiFeedback, generatedActionItems, editingVersionId || undefined);
+            const updatedEssay = useAppStore.getState().essays.find(e => e.id === editingEssayId);
+            const lastVersion = updatedEssay?.versions?.[updatedEssay.versions.length - 1];
+            if (lastVersion) {
+              setEditingVersionId(lastVersion.id);
+            }
+          }
         }
       } else {
-        // 如果是新作文，先保存作文再创建第一个版本
-        const newEssay = {
+        const essayId = addEssay({
           title,
-          content,
+          content: contentToReview,
           toolUsed: selectedTool,
-          feedback: aiFeedback,
-          actionItems: generatedActionItems,
-        };
-        const essayId = addEssay(newEssay);
-        // 立即为新作文创建第一个版本（没有父版本）
-        addEssayVersion(essayId, content, aiFeedback, generatedActionItems);
-        // 设置编辑状态，以便后续保存操作能正确更新作文
+        });
+        addEssayVersion(essayId, contentToReview, aiFeedback, generatedActionItems);
         setEditingEssayId(essayId);
+
+        const updatedEssay = useAppStore.getState().essays.find(e => e.id === essayId);
+        const lastVersion = updatedEssay?.versions?.[updatedEssay.versions.length - 1];
+        if (lastVersion) {
+          setEditingVersionId(lastVersion.id);
+        }
+
+        targetEssayId = essayId;
+      }
+
+      if (targetEssayId) {
+        void runOverallReview(targetEssayId);
       }
 
       setIsFeedbackModalOpen(true);
