@@ -81,7 +81,6 @@ const calculateTextDiff = (oldContent: string, newContent: string): { added: str
 
   return { added, removed };
 };
-}
 
 // 将文本分割成段落作为关键位置
 const splitTextIntoSegments = (content: string): string[] => {
@@ -102,14 +101,34 @@ const splitTextIntoSegments = (content: string): string[] => {
 const generatePositionDescription = (content: string, target: string): string => {
   if (!content || !target) return '[未知位置]';
 
-  const position = findTextPosition(content, target);
-  if (!position) return '[位置未找到]';
+  // 使用splitTextIntoSegments将文本分割成关键位置
+  const segments = splitTextIntoSegments(content);
 
-  // 简化位置描述
-  const before = position.before.substring(0, 15) + (position.before.length > 15 ? '...' : '');
-  const after = position.after.substring(0, 15) + (position.after.length > 15 ? '...' : '');
+  // 找到目标内容在哪个段落
+  let targetIndex = -1;
+  for (let i = 0; i < segments.length; i++) {
+    if (segments[i].includes(target)) {
+      targetIndex = i;
+      break;
+    }
+  }
 
-  return `"${before}"和"${after}"之间`;
+  if (targetIndex === -1) return '[位置未找到]';
+
+  // 生成位置描述
+  const beforeSegment = targetIndex > 0 ? segments[targetIndex - 1].substring(0, 15) : '[开头]';
+  const afterSegment = targetIndex < segments.length - 1 ? segments[targetIndex + 1].substring(0, 15) : '[结尾]';
+
+  // 如果是开头或结尾，使用不同的描述
+  if (targetIndex === 0 && segments.length === 1) {
+    return '[开头部分]';
+  } else if (targetIndex === 0) {
+    return `"${afterSegment}"之前`;
+  } else if (targetIndex === segments.length - 1) {
+    return `"${beforeSegment}"之后`;
+  } else {
+    return `"${beforeSegment}"和"${afterSegment}"之间`;
+  }
 };
 
 const formatDateTime = (value: Date | string): string => {
