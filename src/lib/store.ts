@@ -24,6 +24,7 @@ interface AppState {
   updateEssay: (id: string, updates: Partial<Essay>) => void;
   deleteEssay: (id: string) => void;
   addEssayVersion: (essayId: string, content: string, feedback?: string, actionItems?: ActionItem[], parentId?: string) => void; // 添加作文版本
+  updateEssayVersion: (essayId: string, versionId: string, updates: Partial<EssayVersion>) => void; // 更新作文版本
   // 新增行动项更新方法
   updateActionItem: (essayId: string, versionId: string | null, actionItemId: string, completed: boolean) => void;
 
@@ -166,6 +167,19 @@ const initialState: StudentProgress = {
 
 const genId = (): string => nanoid();
 
+// 获取作文的当前版本内容
+export const getCurrentEssayContent = (essay: Essay): string => {
+  // 如果有currentVersionId，返回对应版本的内容
+  if (essay.currentVersionId && essay.versions) {
+    const currentVersion = essay.versions.find(v => v.id === essay.currentVersionId);
+    if (currentVersion) {
+      return currentVersion.content;
+    }
+  }
+  // 如果没有currentVersionId或找不到对应版本，返回主content字段
+  return essay.content || '';
+};
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -268,7 +282,8 @@ export const useAppStore = create<AppState>()(
           ...essayData,
           id: genId(),
           createdAt: new Date(),
-          versions: [] // 初始化版本数组
+          versions: [], // 初始化版本数组
+          currentVersionId: undefined // 初始化当前版本ID
         };
         set(state => {
           // 增加相关工具的练习次数
@@ -300,7 +315,12 @@ export const useAppStore = create<AppState>()(
       updateEssay: (id, updates) => {
         set(state => ({
           essays: state.essays.map(essay =>
-            essay.id === id ? { ...essay, ...updates } : essay
+            essay.id === id ? {
+              ...essay,
+              ...updates,
+              // 如果更新包含content，则清除currentVersionId以使用主content字段
+              ...(updates.content !== undefined ? { currentVersionId: undefined } : {})
+            } : essay
           )
         }));
       },
@@ -326,10 +346,30 @@ export const useAppStore = create<AppState>()(
               };
               return {
                 ...essay,
+                currentVersionId: newVersion.id, // 更新当前版本ID为新版本的ID
                 versions: [...(essay.versions || []), newVersion]
               };
             }
             return essay;
+          })
+        }));
+      },
+
+      updateEssayVersion: (essayId, versionId, updates) => {
+        set(state => ({
+          essays: state.essays.map(essay => {
+            if (essay.id !== essayId || !essay.versions) {
+              return essay;
+            }
+            return {
+              ...essay,
+              currentVersionId: essay.currentVersionId === versionId ? versionId : essay.currentVersionId, // 确保currentVersionId保持正确
+              versions: essay.versions.map(version =>
+                version.id === versionId
+                  ? { ...version, ...updates }
+                  : version
+              )
+            };
           })
         }));
       },

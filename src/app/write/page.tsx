@@ -5,6 +5,7 @@ import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
 import { getActualEndpoint } from '@/lib/utils';
+import { Essay, EssayVersion } from '@/types';
 import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
@@ -13,19 +14,405 @@ import CompositionPaper from '@/components/CompositionPaper';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
+interface VersionNode extends EssayVersion {
+  order: number;
+  children: VersionNode[];
+}
+
+const getTimestamp = (value: Date | string): number => {
+  const date = value instanceof Date ? value : new Date(value);
+  const time = date.getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
+// 在文本中找到指定内容的位置
+const findTextPosition = (content: string, text: string): { before: string; after: string } | null => {
+  if (!content || !text) return null;
+
+  const index = content.indexOf(text);
+  if (index === -1) return null;
+
+  // 获取内容前后的上下文
+  const beforeContext = content.substring(0, index).trim().split('\n').slice(-2).join(' ');
+  const afterContext = content.substring(index + text.length).trim().split('\n').slice(0, 2).join(' ');
+
+  return {
+    before: beforeContext || '[开头]',
+    after: afterContext || '[结尾]'
+  };
+};
+
+// 计算两个版本之间的文本差异（增强实现）
+const calculateTextDiff = (oldContent: string, newContent: string, useDetailedDiff: boolean = true): { added: string[]; removed: string[]; modified: string[]; shouldUseFullContent: boolean } => {
+  if (!oldContent && !newContent) {
+    return { added: [], removed: [], modified: [], shouldUseFullContent: false };
+  }
+
+  if (!oldContent) {
+    return { added: [newContent], removed: [], modified: [], shouldUseFullContent: true };
+  }
+
+  if (!newContent) {
+    return { added: [], removed: [oldContent], modified: [], shouldUseFullContent: true };
+  }
+
+  // 简单的行级差异检测
+  const oldLines = oldContent.split('\n').filter(line => line.trim());
+  const newLines = newContent.split('\n').filter(line => line.trim());
+
+  const added: string[] = [];
+  const removed: string[] = [];
+  const modified: string[] = [];
+
+  // 如果不需要详细差异，直接返回
+  if (!useDetailedDiff) {
+    return { added, removed, modified, shouldUseFullContent: true };
+  }
+
+  // 找出新增的行
+  newLines.forEach(line => {
+    if (!oldLines.includes(line) && line.trim()) {
+      // 只取行的前20个字符作为标识
+      added.push(line.substring(0, 20) + (line.length > 20 ? '...' : ''));
+    }
+  });
+
+  // 找出删除的行
+  oldLines.forEach(line => {
+    if (!newLines.includes(line) && line.trim()) {
+      // 只取行的前20个字符作为标识
+      removed.push(line.substring(0, 20) + (line.length > 20 ? '...' : ''));
+    }
+  });
+
+  // 简单的修改检测（在同一位置的行如果有变化则视为修改）
+  for (let i = 0; i < Math.min(oldLines.length, newLines.length); i++) {
+    if (oldLines[i] !== newLines[i] && oldLines[i].trim() && newLines[i].trim()) {
+      // 只取行的前20个字符作为标识
+      modified.push(`行${i + 1}: "${oldLines[i].substring(0, 10)}" → "${newLines[i].substring(0, 10)}"`);
+    }
+  }
+
+  // 计算差异描述的总长度
+  const diffDescriptionLength =
+    added.join('').length +
+    removed.join('').length +
+    modified.join('').length;
+
+  // 如果差异描述长度接近或大于原文长度，建议使用完整内容
+  const shouldUseFullContent = diffDescriptionLength >= oldContent.length * 0.8;
+
+  return { added, removed, modified, shouldUseFullContent };
+};
+
+// 将文本分割成段落作为关键位置
+const splitTextIntoSegments = (content: string): string[] => {
+  if (!content) return [];
+
+  // 按段落分割（两个换行符）
+  const paragraphs = content.split('\n\n').filter(p => p.trim());
+
+  // 如果段落太少，按单个换行符分割
+  if (paragraphs.length < 3) {
+    return content.split('\n').filter(p => p.trim());
+  }
+
+  return paragraphs;
+};
+
+// 生成内容位置的自然语言描述
+const generatePositionDescription = (content: string, target: string): string => {
+  if (!content || !target) return '[未知位置]';
+
+  // 使用findTextPosition获取精确的前后上下文
+  const position = findTextPosition(content, target);
+  if (!position) return '[位置未找到]';
+
+  // 使用splitTextIntoSegments将文本分割成关键位置以获得更自然的描述
+  const segments = splitTextIntoSegments(content);
+
+  // 找到目标内容在哪个段落
+  let targetIndex = -1;
+  for (let i = 0; i < segments.length; i++) {
+    if (segments[i].includes(target)) {
+      targetIndex = i;
+      break;
+    }
+  }
+
+  if (targetIndex === -1) {
+    // 如果在段落中找不到，使用findTextPosition的结果
+    if (position.before === '[开头]' && position.after === '[结尾]') {
+      return '[开头部分]';
+    } else if (position.before === '[开头]') {
+      return `"${position.after.substring(0, 15)}"之前`;
+    } else if (position.after === '[结尾]') {
+      return `"${position.before.substring(0, 15)}"之后`;
+    } else {
+      return `"${position.before.substring(0, 15)}"和"${position.after.substring(0, 15)}"之间`;
+    }
+  }
+
+  // 生成位置描述
+  const beforeSegment = targetIndex > 0 ? segments[targetIndex - 1].substring(0, 15) : '[开头]';
+  const afterSegment = targetIndex < segments.length - 1 ? segments[targetIndex + 1].substring(0, 15) : '[结尾]';
+
+  // 如果是开头或结尾，使用不同的描述
+  if (targetIndex === 0 && segments.length === 1) {
+    return '[开头部分]';
+  } else if (targetIndex === 0) {
+    return `"${afterSegment}"之前`;
+  } else if (targetIndex === segments.length - 1) {
+    return `"${beforeSegment}"之后`;
+  } else {
+    return `"${beforeSegment}"和"${afterSegment}"之间`;
+  }
+};
+
+const formatDateTime = (value: Date | string): string => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  // 使用本地化格式而不是UTC格式
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+};
+
+const buildVersionNodes = (versions: EssayVersion[]): { roots: VersionNode[]; nodeMap: Map<string, VersionNode> } => {
+  const nodeMap = new Map<string, VersionNode>();
+  // 基于创建时间排序，确保 order 反映时间顺序
+  const sortedVersions = [...versions].sort((a, b) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+  sortedVersions.forEach((version, index) => {
+    nodeMap.set(version.id, {
+      ...version,
+      order: index + 1,
+      children: [],
+    });
+  });
+
+  nodeMap.forEach(node => {
+    if (node.parentId && nodeMap.has(node.parentId)) {
+      nodeMap.get(node.parentId)!.children.push(node);
+    }
+  });
+
+  const sortNodes = (nodes: VersionNode[]) => {
+    nodes.sort((a, b) => a.order - b.order);
+    nodes.forEach(child => sortNodes(child.children));
+  };
+
+  const roots: VersionNode[] = [];
+  nodeMap.forEach(node => {
+    if (!node.parentId || !nodeMap.has(node.parentId)) {
+      roots.push(node);
+    }
+  });
+
+  sortNodes(roots);
+
+  return { roots, nodeMap };
+};
+
+const formatVersionNode = (node: VersionNode, nodeMap: Map<string, VersionNode>, depth = 0): string => {
+  const indent = '  '.repeat(depth);
+  const createdAt = formatDateTime(node.createdAt);
+  const parentOrder = node.parentId ? nodeMap.get(node.parentId)?.order : undefined;
+
+  let result = `${indent}- 版本 ${node.order}`;
+  if (parentOrder) {
+    result += `（基于版本 ${parentOrder}）`;
+  }
+  if (createdAt) {
+    result += `\n${indent}  创建时间：${createdAt}`;
+  }
+
+  // 确保 content 是字符串，避免 null 或 undefined 导致的错误
+  const content = node.content ?? '';
+  const indentedContent = content.replace(/\n/g, `\n${indent}  `);
+  result += `\n${indent}  内容：\n${indent}  ${indentedContent}`;
+
+  if (node.children.length > 0) {
+    const childrenText = node.children.map(child => formatVersionNode(child, nodeMap, depth + 1)).join('\n');
+    result += `\n${childrenText}`;
+  }
+
+  return result;
+};
+
+// 获取最新版本信息（保留用于向后兼容）
+const prepareEssayHistoryData = (essay: Essay, maxVersions = 10) => {
+  let versions = essay.versions ?? [];
+
+  if (versions.length === 0) {
+    return {
+      latestLabel: '当前内容',
+      latestContent: essay.content,
+      formattedHistory: `该作文目前只有一个版本。\n内容：\n${essay.content}`,
+    };
+  }
+
+  // 限制版本数量，只取最近的N个版本
+  if (versions.length > maxVersions) {
+    versions = [...versions]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, maxVersions);
+  }
+
+  const latestVersion = versions.reduce((latest, current) => {
+    const latestTime = getTimestamp(latest.createdAt);
+    const currentTime = getTimestamp(current.createdAt);
+    if (currentTime > latestTime) {
+      return current;
+    }
+    return latest;
+  }, versions[0]);
+
+  const latestOrder = versions.findIndex(v => v.id === latestVersion.id) + 1;
+
+  return {
+    latestLabel: `版本 ${latestOrder}`,
+    latestContent: latestVersion.content,
+    formattedHistory: '', // 不再生成完整的格式化历史，因为我们使用了简化版本
+  };
+};
+
+// 生成简化版本历史，优化上下文长度
+const generateSimplifiedVersionHistory = (essay: Essay): string => {
+  const versions = essay.versions ?? [];
+
+  if (versions.length === 0) {
+    return `该作文目前只有一个版本。\n内容：\n${essay.content}`;
+  }
+
+  // 按创建时间排序版本
+  const sortedVersions = [...versions].sort((a, b) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
+  // 如果只有一个版本，直接返回完整内容
+  if (sortedVersions.length === 1) {
+    const version = sortedVersions[0];
+    return `版本1：[完整内容]\n${version.content}`;
+  }
+
+  // 生成版本演进描述
+  let result = '版本演进：\n';
+
+  // 第一版显示完整内容
+  const firstVersion = sortedVersions[0];
+  result += `- 版本1：[完整内容]\n${firstVersion.content}\n\n`;
+
+  // 中间版本显示差异（使用精确位置描述）
+  for (let i = 1; i < sortedVersions.length - 1; i++) {
+    const currentVersion = sortedVersions[i];
+    const parentVersion = currentVersion.parentId
+      ? sortedVersions.find(v => v.id === currentVersion.parentId)
+      : sortedVersions[i - 1];
+
+    const parentOrder = parentVersion
+      ? sortedVersions.indexOf(parentVersion) + 1
+      : i;
+
+    if (parentVersion) {
+      // 使用calculateTextDiff计算差异
+      const diff = calculateTextDiff(parentVersion.content, currentVersion.content);
+
+      // 如果差异描述长度接近或大于原文长度，直接使用完整内容
+      if (diff.shouldUseFullContent) {
+        result += `- 版本${i + 1}：基于版本${parentOrder}，内容有较大变化\n${currentVersion.content}\n`;
+      } else {
+        const removedItems: string[] = [];
+        const addedItems: string[] = [];
+        const modifiedItems: string[] = [];
+
+        // 处理删除的行
+        diff.removed.forEach(removedLine => {
+          if (removedLine.trim()) {
+            // 为删除的行生成位置描述
+            const positionDesc = generatePositionDescription(parentVersion.content, removedLine.substring(0, 20));
+            removedItems.push(`${positionDesc}删除"${removedLine.substring(0, 20) + (removedLine.length > 20 ? '...' : '')}"`);
+          }
+        });
+
+        // 处理新增的行
+        diff.added.forEach(addedLine => {
+          if (addedLine.trim()) {
+            // 为新增的行生成位置描述
+            const positionDesc = generatePositionDescription(currentVersion.content, addedLine.substring(0, 20));
+            addedItems.push(`${positionDesc}新增"${addedLine.substring(0, 20) + (addedLine.length > 20 ? '...' : '')}"`);
+          }
+        });
+
+        // 处理修改的行
+        diff.modified.forEach(modifiedLine => {
+          modifiedItems.push(`修改${modifiedLine}`);
+        });
+
+        let diffDescription = '';
+        if (removedItems.length > 0) {
+          diffDescription += removedItems.join('，');
+          if (removedItems.length > 1) {
+            diffDescription += `等${removedItems.length}处`;
+          }
+        }
+        if (addedItems.length > 0) {
+          if (diffDescription) diffDescription += '，';
+          diffDescription += addedItems.join('，');
+          if (addedItems.length > 1) {
+            diffDescription += `等${addedItems.length}处`;
+          }
+        }
+        if (modifiedItems.length > 0) {
+          if (diffDescription) diffDescription += '，';
+          diffDescription += modifiedItems.join('，');
+          if (modifiedItems.length > 1) {
+            diffDescription += `等${modifiedItems.length}处`;
+          }
+        }
+
+        if (diffDescription) {
+          result += `- 版本${i + 1}：基于版本${parentOrder}，${diffDescription}\n`;
+        } else {
+          result += `- 版本${i + 1}：基于版本${parentOrder}\n`;
+        }
+      }
+    } else {
+      result += `- 版本${i + 1}：基于版本${parentOrder}\n`;
+    }
+
+    result += '\n';
+  }
+
+  // 最后一版显示完整内容
+  const lastVersion = sortedVersions[sortedVersions.length - 1];
+  const lastOrder = sortedVersions.length;
+  result += `- 版本${lastOrder}：[完整内容]\n${lastVersion.content}`;
+
+  return result;
+};
+
 function WriteContent() {
-  const { addEssay, updateEssay, addEssayVersion, essays, aiConfig, progress, setDailyChallenge, updateHabitTracker } = useAppStore();
+  const { addEssay, updateEssay, addEssayVersion, updateEssayVersion, essays, aiConfig, progress, setDailyChallenge, updateHabitTracker } = useAppStore();
   const { showSuccess, showError, showWarning } = useNotificationContext();
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [confirmDialogProps, setConfirmDialogProps] = useState({ title: '', message: '' });
+  const [isSaving, setIsSaving] = useState(false); // 防止并发保存
+  const [isGenerating, setIsGenerating] = useState(false); // 防止并发AI生成
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [selectedTool, setSelectedTool] = useState('free-writing');
   const [topic, setTopic] = useState('');
   const [feedback, setFeedback] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [editingEssayId, setEditingEssayId] = useState<string | null>(null);
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
@@ -37,6 +424,101 @@ function WriteContent() {
     const level = progress.levels.find(l => l.toolId === tool.id);
     return !!level?.testPassed;
   });
+
+  const runOverallReview = async (essayId: string) => {
+    if (!aiConfig?.apiKey) {
+      return;
+    }
+
+    const { essays: currentEssays } = useAppStore.getState();
+    const essay = currentEssays.find(item => item.id === essayId);
+    if (!essay) {
+      return;
+    }
+
+    const { latestLabel, latestContent, formattedHistory } = prepareEssayHistoryData(essay);
+    const simplifiedHistory = generateSimplifiedVersionHistory(essay);
+    const endpoint = getActualEndpoint(aiConfig.baseURL);
+
+    const overallPrompt = `请作为小学六年级作文指导老师，基于自由写作的评价标准，对作文《${essay.title}》进行整体批改。请关注学生在不同版本中的进步，以及仍可提升的方向。
+
+最新版本（${latestLabel}）：
+${latestContent}
+
+版本历史演进：
+${simplifiedHistory}
+
+请按照以下格式输出整体反馈：
+⭐ 星星1：[引用具体亮点]
+⭐ 星星2：[引用具体亮点]
+🙏 愿望：[给出下一步改进建议]
+
+请保持温暖、鼓励的语气，同时指出持续精进的方向。`;
+
+    try {
+      const response = await fetch(`${endpoint}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${aiConfig.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: aiConfig.model || 'gpt-4',
+          messages: [
+            {
+              role: 'system',
+              content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。',
+            },
+            {
+              role: 'user',
+              content: overallPrompt,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 1500,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`整体批改请求失败: ${response.status} ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}...`);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const responseText = await response.text();
+        throw new Error(`整体批改返回非JSON响应，内容类型: ${contentType || 'unknown'}\n响应内容预览: ${responseText.substring(0, 200)}...`);
+      }
+
+      const data = await response.json();
+
+      // 增加更多容错判断，处理不同API可能的响应结构差异
+      if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+        console.error('Invalid API response structure:', data);
+        return;
+      }
+
+      const choice = data.choices[0];
+      if (!choice || !choice.message || typeof choice.message.content !== 'string') {
+        console.error('Invalid choice structure:', choice);
+        // 记录原始响应以便调试
+        console.error('Raw response data:', data);
+        return;
+      }
+
+      const overallFeedback = choice.message.content;
+      if (overallFeedback) {
+        updateEssay(essayId, { feedback: overallFeedback });
+      }
+    } catch (error: unknown) {
+      console.error('整体批改失败:', error);
+      // 向用户显示错误提示
+      if (typeof showError === 'function') {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        showError(`整体批改失败: ${errorMessage || '未知错误'}`);
+      }
+    }
+  };
 
   // 从URL参数中获取预选的工具和题材（只在组件初始化时执行一次）
   useEffect(() => {
@@ -128,8 +610,6 @@ function WriteContent() {
           title,
           content,
           toolUsed: selectedTool,
-          feedback,
-          actionItems: actionItems,
         });
         showSuccess('作文已更新');
       }
@@ -139,8 +619,6 @@ function WriteContent() {
         title,
         content,
         toolUsed: selectedTool,
-        feedback,
-        actionItems: actionItems,
       });
       showSuccess('作文已保存到我的作文中');
     }
@@ -163,6 +641,11 @@ function WriteContent() {
   };
 
   const handleSubmit = async () => {
+    if (isSaving) {
+      showWarning('正在保存中，请稍候...');
+      return;
+    }
+
     if (!title.trim() || !content.trim()) {
       showWarning('请填写标题和内容');
       return;
@@ -177,7 +660,12 @@ function WriteContent() {
         setIsConfirmDialogOpen(false);
         setConfirmAction(null);
         // 继续保存作文的逻辑
-        saveEssay();
+        setIsSaving(true);
+        try {
+          saveEssay();
+        } finally {
+          setIsSaving(false);
+        }
       };
 
       setConfirmDialogProps({
@@ -190,10 +678,20 @@ function WriteContent() {
     }
 
     // 如果没有未完成的行动项，直接保存
-    saveEssay();
+    setIsSaving(true);
+    try {
+      saveEssay();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAIReview = async (reviewContent?: string) => {
+    if (isGenerating) {
+      showWarning('AI正在生成反馈中，请稍候...');
+      return;
+    }
+
     // 处理可能意外传入的事件对象
     let contentToReview: string;
     if (reviewContent === undefined || reviewContent === null) {
@@ -380,42 +878,76 @@ function WriteContent() {
       const generatedActionItems = generateActionItems(aiFeedback);
       setActionItems(generatedActionItems);
 
-      // 如果在编辑已存在的作文，则把反馈和行动项作为新版本保存
+      let targetEssayId: string | null = null;
+
       if (editingEssayId) {
-        // 只有当内容有变化时才创建新版本
+        targetEssayId = editingEssayId;
+
         if (contentToReview !== originalContent) {
-          // 传递父版本ID：如果是编辑特定版本，使用该版本ID作为父版本；否则使用最新版本作为父版本
           let parentId = editingVersionId || undefined;
-          if (!editingVersionId && editingEssayId) {
-            // 基于当前作文内容编辑，使用最新版本作为父版本
-            const essay = essays.find(e => e.id === editingEssayId);
-            if (essay && essay.versions && essay.versions.length > 0) {
-              // 使用最新的版本作为父版本
-              parentId = essay.versions[essay.versions.length - 1].id;
+          if (!editingVersionId) {
+            const currentState = useAppStore.getState();
+            const currentEssay = currentState.essays.find(e => e.id === editingEssayId);
+            if (currentEssay?.versions && currentEssay.versions.length > 0) {
+              // parentId = currentEssay.versions[currentEssay.versions.length - 1].id;
             }
           }
-          addEssayVersion(editingEssayId, content, aiFeedback, generatedActionItems, parentId);
+          addEssayVersion(editingEssayId, contentToReview, aiFeedback, generatedActionItems, parentId);
+
+          const updatedEssay = useAppStore.getState().essays.find(e => e.id === editingEssayId);
+          const lastVersion = updatedEssay?.versions?.[updatedEssay.versions.length - 1];
+          if (lastVersion) {
+            setEditingVersionId(lastVersion.id);
+          }
         } else {
-          // 如果内容没有变化，只更新当前作文的反馈和行动项
-          updateEssay(editingEssayId, {
-            feedback: aiFeedback,
-            actionItems: generatedActionItems,
-          });
+          const currentState = useAppStore.getState();
+          const currentEssay = currentState.essays.find(e => e.id === editingEssayId);
+          let versionIdToUpdate = editingVersionId;
+
+          if (!versionIdToUpdate && currentEssay?.versions) {
+            const matchingVersion = [...currentEssay.versions].reverse().find(version => version.content === contentToReview);
+            if (matchingVersion) {
+              versionIdToUpdate = matchingVersion.id;
+              if (!editingVersionId) {
+                setEditingVersionId(matchingVersion.id);
+              }
+            }
+          }
+
+          if (versionIdToUpdate) {
+            updateEssayVersion(editingEssayId, versionIdToUpdate, {
+              feedback: aiFeedback,
+              actionItems: generatedActionItems,
+            });
+          } else {
+            addEssayVersion(editingEssayId, contentToReview, aiFeedback, generatedActionItems, editingVersionId || undefined);
+            const updatedEssay = useAppStore.getState().essays.find(e => e.id === editingEssayId);
+            const lastVersion = updatedEssay?.versions?.[updatedEssay.versions.length - 1];
+            if (lastVersion) {
+              setEditingVersionId(lastVersion.id);
+            }
+          }
         }
       } else {
-        // 如果是新作文，先保存作文再创建第一个版本
-        const newEssay = {
+        const essayId = addEssay({
           title,
-          content,
+          content: contentToReview,
           toolUsed: selectedTool,
-          feedback: aiFeedback,
-          actionItems: generatedActionItems,
-        };
-        const essayId = addEssay(newEssay);
-        // 立即为新作文创建第一个版本（没有父版本）
-        addEssayVersion(essayId, content, aiFeedback, generatedActionItems);
-        // 设置编辑状态，以便后续保存操作能正确更新作文
+        });
+        addEssayVersion(essayId, contentToReview, aiFeedback, generatedActionItems);
         setEditingEssayId(essayId);
+
+        const updatedEssay = useAppStore.getState().essays.find(e => e.id === essayId);
+        const lastVersion = updatedEssay?.versions?.[updatedEssay.versions.length - 1];
+        if (lastVersion) {
+          setEditingVersionId(lastVersion.id);
+        }
+
+        targetEssayId = essayId;
+      }
+
+      if (targetEssayId) {
+        void runOverallReview(targetEssayId);
       }
 
       setIsFeedbackModalOpen(true);
