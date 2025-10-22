@@ -27,12 +27,26 @@ const getTimestamp = (value: Date | string): number => {
 
 const formatDateTime = (value: Date | string): string => {
   const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+  if (Number.isNaN(date.getTime())) return '';
+
+  // 使用本地化格式而不是UTC格式
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
 };
 
 const buildVersionNodes = (versions: EssayVersion[]): { roots: VersionNode[]; nodeMap: Map<string, VersionNode> } => {
   const nodeMap = new Map<string, VersionNode>();
-  versions.forEach((version, index) => {
+  // 基于创建时间排序，确保 order 反映时间顺序
+  const sortedVersions = [...versions].sort((a, b) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+  sortedVersions.forEach((version, index) => {
     nodeMap.set(version.id, {
       ...version,
       order: index + 1,
@@ -76,7 +90,9 @@ const formatVersionNode = (node: VersionNode, nodeMap: Map<string, VersionNode>,
     result += `\n${indent}  创建时间：${createdAt}`;
   }
 
-  const indentedContent = node.content.replace(/\n/g, `\n${indent}  `);
+  // 确保 content 是字符串，避免 null 或 undefined 导致的错误
+  const content = node.content ?? '';
+  const indentedContent = content.replace(/\n/g, `\n${indent}  `);
   result += `\n${indent}  内容：\n${indent}  ${indentedContent}`;
 
   if (node.children.length > 0) {
@@ -87,8 +103,9 @@ const formatVersionNode = (node: VersionNode, nodeMap: Map<string, VersionNode>,
   return result;
 };
 
-const prepareEssayHistoryData = (essay: Essay) => {
-  const versions = essay.versions ?? [];
+// 限制版本历史数量以避免超出模型上下文限制，默认最多10个版本
+const prepareEssayHistoryData = (essay: Essay, maxVersions = 10) => {
+  let versions = essay.versions ?? [];
 
   if (versions.length === 0) {
     return {
@@ -96,6 +113,13 @@ const prepareEssayHistoryData = (essay: Essay) => {
       latestContent: essay.content,
       formattedHistory: `该作文目前只有一个版本。\n内容：\n${essay.content}`,
     };
+  }
+
+  // 限制版本数量，只取最近的N个版本
+  if (versions.length > maxVersions) {
+    versions = [...versions]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, maxVersions);
   }
 
   const { roots, nodeMap } = buildVersionNodes(versions);
@@ -125,6 +149,8 @@ function WriteContent() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [confirmDialogProps, setConfirmDialogProps] = useState({ title: '', message: '' });
+  const [isSaving, setIsSaving] = useState(false); // 防止并发保存
+  const [isGenerating, setIsGenerating] = useState(false); // 防止并发AI生成
   const searchParams = useSearchParams();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -209,12 +235,31 @@ ${formattedHistory}
       }
 
       const data = await response.json();
-      const overallFeedback = data.choices[0]?.message?.content;
+
+      // 增加更多容错判断，处理不同API可能的响应结构差异
+      if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+        console.error('Invalid API response structure:', data);
+        return;
+      }
+
+      const choice = data.choices[0];
+      if (!choice || !choice.message || typeof choice.message.content !== 'string') {
+        console.error('Invalid choice structure:', choice);
+        // 记录原始响应以便调试
+        console.error('Raw response data:', data);
+        return;
+      }
+
+      const overallFeedback = choice.message.content;
       if (overallFeedback) {
         updateEssay(essayId, { feedback: overallFeedback });
       }
     } catch (error) {
       console.error('整体批改失败:', error);
+      // 向用户显示错误提示
+      if (typeof showError === 'function') {
+        showError(`整体批改失败: ${error.message || '未知错误'}`);
+      }
     }
   };
 
@@ -339,6 +384,11 @@ ${formattedHistory}
   };
 
   const handleSubmit = async () => {
+    if (isSaving) {
+      showWarning('正在保存中，请稍候...');
+      return;
+    }
+
     if (!title.trim() || !content.trim()) {
       showWarning('请填写标题和内容');
       return;
@@ -353,7 +403,12 @@ ${formattedHistory}
         setIsConfirmDialogOpen(false);
         setConfirmAction(null);
         // 继续保存作文的逻辑
-        saveEssay();
+        setIsSaving(true);
+        try {
+          saveEssay();
+        } finally {
+          setIsSaving(false);
+        }
       };
 
       setConfirmDialogProps({
@@ -366,10 +421,20 @@ ${formattedHistory}
     }
 
     // 如果没有未完成的行动项，直接保存
-    saveEssay();
+    setIsSaving(true);
+    try {
+      saveEssay();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAIReview = async (reviewContent?: string) => {
+    if (isGenerating) {
+      showWarning('AI正在生成反馈中，请稍候...');
+      return;
+    }
+
     // 处理可能意外传入的事件对象
     let contentToReview: string;
     if (reviewContent === undefined || reviewContent === null) {
@@ -567,7 +632,7 @@ ${formattedHistory}
             const currentState = useAppStore.getState();
             const currentEssay = currentState.essays.find(e => e.id === editingEssayId);
             if (currentEssay?.versions && currentEssay.versions.length > 0) {
-              parentId = currentEssay.versions[currentEssay.versions.length - 1].id;
+              // parentId = currentEssay.versions[currentEssay.versions.length - 1].id;
             }
           }
           addEssayVersion(editingEssayId, contentToReview, aiFeedback, generatedActionItems, parentId);
