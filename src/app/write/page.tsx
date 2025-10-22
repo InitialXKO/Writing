@@ -25,6 +25,92 @@ const getTimestamp = (value: Date | string): number => {
   return Number.isNaN(time) ? 0 : time;
 };
 
+// 将文本分割成段落作为关键位置
+const splitTextIntoSegments = (content: string): string[] => {
+  if (!content) return [];
+
+  // 按段落分割（两个换行符）
+  const paragraphs = content.split('\n\n').filter(p => p.trim());
+
+  // 如果段落太少，按单个换行符分割
+  if (paragraphs.length < 3) {
+    return content.split('\n').filter(p => p.trim());
+  }
+
+  return paragraphs;
+};
+
+// 在文本中找到指定内容的位置
+const findTextPosition = (content: string, text: string): { before: string; after: string } | null => {
+  if (!content || !text) return null;
+
+  const index = content.indexOf(text);
+  if (index === -1) return null;
+
+  // 获取内容前后的上下文
+  const beforeContext = content.substring(0, index).trim().split('\n').slice(-2).join(' ');
+  const afterContext = content.substring(index + text.length).trim().split('\n').slice(0, 2).join(' ');
+
+  return {
+    before: beforeContext || '[开头]',
+    after: afterContext || '[结尾]'
+  };
+};
+
+// 计算两个版本之间的文本差异（简单实现）
+const calculateTextDiff = (oldContent: string, newContent: string): { added: string[]; removed: string[] } => {
+  if (!oldContent && !newContent) {
+    return { added: [], removed: [] };
+  }
+
+  if (!oldContent) {
+    return { added: [newContent], removed: [] };
+  }
+
+  if (!newContent) {
+    return { added: [], removed: [oldContent] };
+  }
+
+  // 简单的行级差异检测
+  const oldLines = oldContent.split('\n').filter(line => line.trim());
+  const newLines = newContent.split('\n').filter(line => line.trim());
+
+  const added: string[] = [];
+  const removed: string[] = [];
+
+  // 找出新增的行
+  newLines.forEach(line => {
+    if (!oldLines.includes(line) && line.trim()) {
+      // 只取行的前20个字符作为标识
+      added.push(line.substring(0, 20) + (line.length > 20 ? '...' : ''));
+    }
+  });
+
+  // 找出删除的行
+  oldLines.forEach(line => {
+    if (!newLines.includes(line) && line.trim()) {
+      // 只取行的前20个字符作为标识
+      removed.push(line.substring(0, 20) + (line.length > 20 ? '...' : ''));
+    }
+  });
+
+  return { added, removed };
+};
+
+// 生成内容位置的自然语言描述
+const generatePositionDescription = (content: string, target: string): string => {
+  if (!content || !target) return '[未知位置]';
+
+  const position = findTextPosition(content, target);
+  if (!position) return '[位置未找到]';
+
+  // 简化位置描述
+  const before = position.before.substring(0, 15) + (position.before.length > 15 ? '...' : '');
+  const after = position.after.substring(0, 15) + (position.after.length > 15 ? '...' : '');
+
+  return `"${before}"和"${after}"之间`;
+};
+
 const formatDateTime = (value: Date | string): string => {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -143,6 +229,84 @@ const prepareEssayHistoryData = (essay: Essay, maxVersions = 10) => {
   };
 };
 
+// 生成简化版本历史，优化上下文长度
+const generateSimplifiedVersionHistory = (essay: Essay): string => {
+  const versions = essay.versions ?? [];
+
+  if (versions.length === 0) {
+    return `该作文目前只有一个版本。\n内容：\n${essay.content}`;
+  }
+
+  // 按创建时间排序版本
+  const sortedVersions = [...versions].sort((a, b) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
+  // 构建版本节点树
+  const { roots, nodeMap } = buildVersionNodes(sortedVersions);
+
+  // 如果只有一个版本，直接返回完整内容
+  if (sortedVersions.length === 1) {
+    const version = sortedVersions[0];
+    return `版本1：\n${version.content}`;
+  }
+
+  // 生成版本演进描述
+  let result = '版本演进：\n';
+
+  // 第一版显示完整内容
+  const firstVersion = sortedVersions[0];
+  result += `- 版本1：[完整内容]\n${firstVersion.content}\n\n`;
+
+  // 中间版本显示差异
+  for (let i = 1; i < sortedVersions.length - 1; i++) {
+    const currentVersion = sortedVersions[i];
+    const parentVersion = currentVersion.parentId
+      ? sortedVersions.find(v => v.id === currentVersion.parentId)
+      : sortedVersions[i - 1];
+
+    const parentOrder = parentVersion
+      ? sortedVersions.indexOf(parentVersion) + 1
+      : i;
+
+    if (parentVersion) {
+      const diff = calculateTextDiff(parentVersion.content, currentVersion.content);
+
+      let diffDescription = '';
+      if (diff.removed.length > 0) {
+        diffDescription += `删除"${diff.removed[0]}"`;
+        if (diff.removed.length > 1) {
+          diffDescription += `等${diff.removed.length}处`;
+        }
+      }
+      if (diff.added.length > 0) {
+        if (diffDescription) diffDescription += '，';
+        diffDescription += `新增"${diff.added[0]}"`;
+        if (diff.added.length > 1) {
+          diffDescription += `等${diff.added.length}处`;
+        }
+      }
+
+      if (diffDescription) {
+        result += `- 版本${i + 1}：基于版本${parentOrder}，${diffDescription}\n`;
+      } else {
+        result += `- 版本${i + 1}：基于版本${parentOrder}\n`;
+      }
+    } else {
+      result += `- 版本${i + 1}：基于版本${parentOrder}\n`;
+    }
+
+    result += '\n';
+  }
+
+  // 最后一版显示完整内容
+  const lastVersion = sortedVersions[sortedVersions.length - 1];
+  const lastOrder = sortedVersions.length;
+  result += `- 版本${lastOrder}：[完整内容]\n${lastVersion.content}`;
+
+  return result;
+};
+
 function WriteContent() {
   const { addEssay, updateEssay, addEssayVersion, updateEssayVersion, essays, aiConfig, progress, setDailyChallenge, updateHabitTracker } = useAppStore();
   const { showSuccess, showError, showWarning } = useNotificationContext();
@@ -253,11 +417,12 @@ ${formattedHistory}
       if (overallFeedback) {
         updateEssay(essayId, { feedback: overallFeedback });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('整体批改失败:', error);
       // 向用户显示错误提示
       if (typeof showError === 'function') {
-        showError(`整体批改失败: ${error.message || '未知错误'}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        showError(`整体批改失败: ${errorMessage || '未知错误'}`);
       }
     }
   };
