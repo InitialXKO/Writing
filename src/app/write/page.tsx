@@ -81,6 +81,35 @@ const calculateTextDiff = (oldContent: string, newContent: string): { added: str
 
   return { added, removed };
 };
+}
+
+// 将文本分割成段落作为关键位置
+const splitTextIntoSegments = (content: string): string[] => {
+  if (!content) return [];
+
+  // 按段落分割（两个换行符）
+  const paragraphs = content.split('\n\n').filter(p => p.trim());
+
+  // 如果段落太少，按单个换行符分割
+  if (paragraphs.length < 3) {
+    return content.split('\n').filter(p => p.trim());
+  }
+
+  return paragraphs;
+};
+
+// 生成内容位置的自然语言描述
+const generatePositionDescription = (content: string, target: string): string => {
+  if (!content || !target) return '[未知位置]';
+
+  const position = findTextPosition(content, target);
+  if (!position) return '[位置未找到]';
+
+  // 简化位置描述
+  const before = position.before.substring(0, 15) + (position.before.length > 15 ? '...' : '');
+  const after = position.after.substring(0, 15) + (position.after.length > 15 ? '...' : '');
+
+  return `"${before}"和"${after}"之间`;
 };
 
 const formatDateTime = (value: Date | string): string => {
@@ -211,13 +240,10 @@ const generateSimplifiedVersionHistory = (essay: Essay): string => {
     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
-  // 构建版本节点树
-  const { roots, nodeMap } = buildVersionNodes(sortedVersions);
-
   // 如果只有一个版本，直接返回完整内容
   if (sortedVersions.length === 1) {
     const version = sortedVersions[0];
-    return `版本1：\n${version.content}`;
+    return `版本1：[完整内容]\n${version.content}`;
   }
 
   // 生成版本演进描述
@@ -227,7 +253,7 @@ const generateSimplifiedVersionHistory = (essay: Essay): string => {
   const firstVersion = sortedVersions[0];
   result += `- 版本1：[完整内容]\n${firstVersion.content}\n\n`;
 
-  // 中间版本显示差异
+  // 中间版本显示差异（使用精确位置描述）
   for (let i = 1; i < sortedVersions.length - 1; i++) {
     const currentVersion = sortedVersions[i];
     const parentVersion = currentVersion.parentId
@@ -239,20 +265,44 @@ const generateSimplifiedVersionHistory = (essay: Essay): string => {
       : i;
 
     if (parentVersion) {
-      const diff = calculateTextDiff(parentVersion.content, currentVersion.content);
+      // 使用更精确的差异检测
+      const removedItems: string[] = [];
+      const addedItems: string[] = [];
+
+      // 简单的行级差异检测
+      const parentLines = parentVersion.content.split('\n').filter(line => line.trim());
+      const currentLines = currentVersion.content.split('\n').filter(line => line.trim());
+
+      // 找出删除的行
+      parentLines.forEach(line => {
+        if (!currentLines.includes(line) && line.trim()) {
+          // 为删除的行生成位置描述
+          const positionDesc = generatePositionDescription(parentVersion.content, line.substring(0, 20));
+          removedItems.push(`${positionDesc}删除"${line.substring(0, 20) + (line.length > 20 ? '...' : '')}"`);
+        }
+      });
+
+      // 找出新增的行
+      currentLines.forEach(line => {
+        if (!parentLines.includes(line) && line.trim()) {
+          // 为新增的行生成位置描述
+          const positionDesc = generatePositionDescription(currentVersion.content, line.substring(0, 20));
+          addedItems.push(`${positionDesc}新增"${line.substring(0, 20) + (line.length > 20 ? '...' : '')}"`);
+        }
+      });
 
       let diffDescription = '';
-      if (diff.removed.length > 0) {
-        diffDescription += `删除"${diff.removed[0]}"`;
-        if (diff.removed.length > 1) {
-          diffDescription += `等${diff.removed.length}处`;
+      if (removedItems.length > 0) {
+        diffDescription += removedItems.join('，');
+        if (removedItems.length > 1) {
+          diffDescription += `等${removedItems.length}处`;
         }
       }
-      if (diff.added.length > 0) {
+      if (addedItems.length > 0) {
         if (diffDescription) diffDescription += '，';
-        diffDescription += `新增"${diff.added[0]}"`;
-        if (diff.added.length > 1) {
-          diffDescription += `等${diff.added.length}处`;
+        diffDescription += addedItems.join('，');
+        if (addedItems.length > 1) {
+          diffDescription += `等${addedItems.length}处`;
         }
       }
 
