@@ -345,6 +345,7 @@ function WriteContent() {
     }
 
     const { latestLabel, latestContent, formattedHistory } = prepareEssayHistoryData(essay);
+    const simplifiedHistory = generateSimplifiedVersionHistory(essay);
     const endpoint = getActualEndpoint(aiConfig.baseURL);
 
     const overallPrompt = `请作为小学六年级作文指导老师，基于自由写作的评价标准，对作文《${essay.title}》进行整体批改。请关注学生在不同版本中的进步，以及仍可提升的方向。
@@ -352,8 +353,8 @@ function WriteContent() {
 最新版本（${latestLabel}）：
 ${latestContent}
 
-完整版本历史（包含所有分支）：
-${formattedHistory}
+版本历史演进：
+${simplifiedHistory}
 
 请按照以下格式输出整体反馈：
 ⭐ 星星1：[引用具体亮点]
