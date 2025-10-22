@@ -157,7 +157,6 @@ function WriteContent() {
   const [selectedTool, setSelectedTool] = useState('free-writing');
   const [topic, setTopic] = useState('');
   const [feedback, setFeedback] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [editingEssayId, setEditingEssayId] = useState<string | null>(null);
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
