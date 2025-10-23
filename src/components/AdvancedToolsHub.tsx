@@ -8,12 +8,25 @@ import {
 } from 'lucide-react';
 import { WritingTool } from '@/types';
 import Link from 'next/link';
+import { topLevelToolsConfig } from '@/lib/tool-config';
 
 interface AdvancedToolsHubProps {
   tools: WritingTool[];
   onToolSelect: (toolId: string) => void;
   onBack: () => void;
 }
+
+// 图标映射
+const iconMap: Record<string, JSX.Element> = {
+  Brain: <Brain className="w-5 h-5" />,
+  Building: <Building className="w-5 h-5" />,
+  MessageSquare: <MessageSquare className="w-5 h-5" />,
+  Target: <Target className="w-5 h-5" />,
+  Sparkles: <Sparkles className="w-5 h-5" />,
+  Puzzle: <Puzzle className="w-5 h-5" />,
+  CheckCircle: <CheckCircle className="w-5 h-5" />,
+  Layers: <Layers className="w-5 h-5" />,
+};
 
 const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps) => {
   const [activeTool, setActiveTool] = useState<string | null>(null);
@@ -28,54 +41,11 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
     parseInt(tool.id.split('-')[1]) >= 7
   );
 
-  // 按顶层工具分组
-  const topLevelTools = [
-    {
-      id: 'tool-40',
-      name: '思路整理法',
-      icon: <Brain className="w-5 h-5" />,
-      description: '帮你把脑子里乱糟糟的想法，整理成别人能看懂的文章',
-      subTools: [
-        'tool-7', 'tool-8', 'tool-21'
-      ]
-    },
-    {
-      id: 'tool-41',
-      name: '框架搭建法',
-      icon: <Building className="w-5 h-5" />,
-      description: '教你如何搭建文章骨架，让观点清楚表达',
-      subTools: [
-        'tool-9', 'tool-10', 'tool-22', 'tool-23', 'tool-24', 'tool-25'
-      ]
-    },
-    {
-      id: 'tool-42',
-      name: '表达美化技能',
-      icon: <MessageSquare className="w-5 h-5" />,
-      description: '让你的文字更有感染力，打动读者',
-      subTools: [
-        'tool-11', 'tool-12', 'tool-13', 'tool-14', 'tool-29'
-      ]
-    },
-    {
-      id: 'tool-43',
-      name: '深度思考能力',
-      icon: <Target className="w-5 h-5" />,
-      description: '帮你深入思考问题本质，写出独特见解',
-      subTools: [
-        'tool-15', 'tool-26', 'tool-27', 'tool-5', 'tool-20', 'tool-28'
-      ]
-    },
-    {
-      id: 'tool-44',
-      name: '文章润色技能',
-      icon: <Sparkles className="w-5 h-5" />,
-      description: '让你的文章更有质感，读起来更舒服',
-      subTools: [
-        'tool-32', 'tool-30', 'tool-31', 'tool-33', 'tool-34', 'tool-35', 'tool-36', 'tool-37', 'tool-38', 'tool-39'
-      ]
-    }
-  ];
+  // 使用共享配置，映射图标
+  const topLevelTools = topLevelToolsConfig.map(tool => ({
+    ...tool,
+    icon: iconMap[tool.icon] || <Layers className="w-5 h-5" />
+  }));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-morandi-gray-100 to-white">
@@ -347,30 +317,32 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
                     )}
 
                     {/* 子工具列表 */}
-                    <div className="mb-4 last:mb-0">
-                      <h4 className="font-bold text-morandi-gray-800 mb-3 flex items-center gap-2">
-                        <div className="w-2 h-2 bg-morandi-purple-500 rounded-full"></div>
-                        支撑此工具的子工具
-                        <span className="text-sm font-normal text-morandi-gray-600">掌握这些子工具，提升您的写作技能</span>
-                      </h4>
-                      <div className="space-y-3 pl-4 border-l-2 border-morandi-purple-200">
-                        {subTools.map((subTool) => (
-                          <div
-                            key={subTool.id}
-                            className="p-3 bg-white rounded-lg border border-morandi-gray-200 hover:border-morandi-purple-300 cursor-pointer transition-colors"
-                            onClick={() => onToolSelect(subTool.id)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h5 className="font-medium text-morandi-gray-800">{subTool.name}</h5>
-                                <p className="text-sm text-morandi-gray-600">{subTool.title}</p>
+                    {subTools.length > 0 && (
+                      <div className="mb-4 last:mb-0">
+                        <h4 className="font-bold text-morandi-gray-800 mb-3 flex items-center gap-2">
+                          <div className="w-2 h-2 bg-morandi-purple-500 rounded-full"></div>
+                          支撑此工具的子工具
+                          <span className="text-sm font-normal text-morandi-gray-600">掌握这些子工具，提升您的写作技能</span>
+                        </h4>
+                        <div className="space-y-3 pl-4 border-l-2 border-morandi-purple-200">
+                          {subTools.map((subTool) => (
+                            <div
+                              key={subTool.id}
+                              className="p-3 bg-white rounded-lg border border-morandi-gray-200 hover:border-morandi-purple-300 cursor-pointer transition-colors"
+                              onClick={() => onToolSelect(subTool.id)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h5 className="font-medium text-morandi-gray-800">{subTool.name}</h5>
+                                  <p className="text-sm text-morandi-gray-600">{subTool.title}</p>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-morandi-gray-400" />
                               </div>
-                              <ChevronRight className="w-4 h-4 text-morandi-gray-400" />
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>

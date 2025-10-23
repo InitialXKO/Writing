@@ -9,6 +9,44 @@ import ComprehensionTest from '@/components/ComprehensionTest';
 import WritingToolGuide from '@/components/WritingToolGuide';
 import SubToolsList from '@/components/SubToolsList';
 import PasswordInput from '@/components/PasswordInput';
+import { topLevelToolIds as topLevelTools, subToolToParentMap, sharedSubTools } from '@/lib/tool-config';
+
+// 导航逻辑辅助函数
+const getNavigationInfo = (toolId: string) => {
+  // 检查是否为顶层工具
+  if (topLevelTools.includes(toolId)) {
+    return {
+      type: 'top-level' as const,
+      href: '/tools/advanced-tools',
+      label: '返回高级工具页面'
+    };
+  }
+
+  // 检查是否为复用的子工具
+  if (sharedSubTools.includes(toolId)) {
+    return {
+      type: 'shared-sub' as const,
+      href: '/tools/advanced-tools',
+      label: '返回高级工具页面'
+    };
+  }
+
+  // 检查是否为子工具
+  if (subToolToParentMap[toolId]) {
+    return {
+      type: 'sub-tool' as const,
+      href: `/tools/${subToolToParentMap[toolId]}`,
+      label: '返回顶层工具'
+    };
+  }
+
+  // 默认返回首页
+  return {
+    type: 'default' as const,
+    href: '/',
+    label: '返回首页'
+  };
+};
 
 export default function ToolPageClient({ params }: { params: { id: string } }) {
   const toolId = params.id;
@@ -26,6 +64,9 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
 
   // 检查是否为高级工具集页面
   const isAdvancedToolsCollection = toolId === 'advanced-tools';
+
+  // 获取导航信息
+  const navigationInfo = getNavigationInfo(toolId);
 
   if (!tool) {
     return (
@@ -62,112 +103,15 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
       <div className="bg-gradient-to-r from-morandi-blue-600 to-morandi-green-700 text-white">
         <div className="max-w-6xl mx-auto px-6 py-8">
           {/* 根据工具类型显示不同的返回按钮 */}
-          {(() => {
-            // 顶层工具列表
-            const topLevelTools = ['tool-40', 'tool-41', 'tool-42', 'tool-43', 'tool-44'];
-
-            // 子工具到顶层工具的映射
-            const subToolToParentMap: Record<string, string> = {
-              // 思路整理法的子工具
-              'tool-7': 'tool-40',
-              'tool-8': 'tool-40',
-              'tool-21': 'tool-40',
-
-              // 框架搭建法的子工具
-              'tool-9': 'tool-41',
-              'tool-10': 'tool-41',
-              'tool-22': 'tool-41',
-              'tool-23': 'tool-41',
-              'tool-24': 'tool-41',
-              'tool-25': 'tool-41',
-
-              // 表达美化技能的子工具
-              'tool-11': 'tool-42',
-              'tool-12': 'tool-42',
-              'tool-13': 'tool-42',
-              'tool-14': 'tool-42',
-              'tool-29': 'tool-42',
-
-              // 深度思考能力的子工具
-              'tool-26': 'tool-43',
-              'tool-27': 'tool-43',
-              'tool-20': 'tool-43',
-              'tool-28': 'tool-43',
-
-              // 文章润色技能的子工具
-              'tool-32': 'tool-44',
-              'tool-30': 'tool-44',
-              'tool-31': 'tool-44',
-              'tool-33': 'tool-44',
-              'tool-34': 'tool-44',
-              'tool-35': 'tool-44',
-              'tool-36': 'tool-44',
-              'tool-37': 'tool-44',
-              'tool-38': 'tool-44',
-              'tool-39': 'tool-44'
-            };
-
-            // 复用的子工具列表
-            const sharedSubTools = ['tool-5', 'tool-15'];
-
-            // 检查是否为顶层工具
-            if (topLevelTools.includes(toolId)) {
-              return (
-                <Link
-                  href="/tools/advanced-tools"
-                  className="flex items-center gap-2 text-morandi-blue-100 hover:text-white transition-colors mb-6 w-fit"
-                >
-                  <div className="p-2 bg-morandi-blue-500/20 rounded-lg">
-                    <ArrowLeft className="w-5 h-5" />
-                  </div>
-                  返回高级工具页面
-                </Link>
-              );
-            }
-
-            // 检查是否为复用的子工具
-            if (sharedSubTools.includes(toolId)) {
-              return (
-                <Link
-                  href="/tools/advanced-tools"
-                  className="flex items-center gap-2 text-morandi-blue-100 hover:text-white transition-colors mb-6 w-fit"
-                >
-                  <div className="p-2 bg-morandi-blue-500/20 rounded-lg">
-                    <ArrowLeft className="w-5 h-5" />
-                  </div>
-                  返回高级工具页面
-                </Link>
-              );
-            }
-
-            // 检查是否为子工具
-            if (subToolToParentMap[toolId]) {
-              return (
-                <Link
-                  href={`/tools/${subToolToParentMap[toolId]}`}
-                  className="flex items-center gap-2 text-morandi-blue-100 hover:text-white transition-colors mb-6 w-fit"
-                >
-                  <div className="p-2 bg-morandi-blue-500/20 rounded-lg">
-                    <ArrowLeft className="w-5 h-5" />
-                  </div>
-                  返回顶层工具
-                </Link>
-              );
-            }
-
-            // 默认返回首页
-            return (
-              <Link
-                href="/"
-                className="flex items-center gap-2 text-morandi-blue-100 hover:text-white transition-colors mb-6 w-fit"
-              >
-                <div className="p-2 bg-morandi-blue-500/20 rounded-lg">
-                  <ArrowLeft className="w-5 h-5" />
-                </div>
-                返回首页
-              </Link>
-            );
-          })()}
+          <Link
+            href={navigationInfo.href}
+            className="flex items-center gap-2 text-morandi-blue-100 hover:text-white transition-colors mb-6 w-fit"
+          >
+            <div className="p-2 bg-morandi-blue-500/20 rounded-lg">
+              <ArrowLeft className="w-5 h-5" />
+            </div>
+            {navigationInfo.label}
+          </Link>
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -485,91 +429,13 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
                 通过理解测试后解锁练习
               </button>
             )}
-            {(() => {
-            // 顶层工具列表
-            const topLevelTools = ['tool-40', 'tool-41', 'tool-42', 'tool-43', 'tool-44'];
-
-            // 子工具到顶层工具的映射
-            const subToolToParentMap: Record<string, string> = {
-              // 思路整理法的子工具
-              'tool-7': 'tool-40',
-              'tool-8': 'tool-40',
-              'tool-21': 'tool-40',
-
-              // 框架搭建法的子工具
-              'tool-9': 'tool-41',
-              'tool-10': 'tool-41',
-              'tool-22': 'tool-41',
-              'tool-23': 'tool-41',
-              'tool-24': 'tool-41',
-              'tool-25': 'tool-41',
-
-              // 表达美化技能的子工具
-              'tool-11': 'tool-42',
-              'tool-12': 'tool-42',
-              'tool-13': 'tool-42',
-              'tool-14': 'tool-42',
-              'tool-29': 'tool-42',
-
-              // 深度思考能力的子工具
-              'tool-26': 'tool-43',
-              'tool-27': 'tool-43',
-              'tool-20': 'tool-43',
-              'tool-28': 'tool-43',
-
-              // 文章润色技能的子工具
-              'tool-32': 'tool-44',
-              'tool-30': 'tool-44',
-              'tool-31': 'tool-44',
-              'tool-33': 'tool-44',
-              'tool-34': 'tool-44',
-              'tool-35': 'tool-44',
-              'tool-36': 'tool-44',
-              'tool-37': 'tool-44',
-              'tool-38': 'tool-44',
-              'tool-39': 'tool-44'
-            };
-
-            // 复用的子工具列表
-            const sharedSubTools = ['tool-5', 'tool-15'];
-
-            // 检查是否为顶层工具
-            if (topLevelTools.includes(toolId)) {
-              return (
-                <Link
-                  href="/tools/advanced-tools"
-                  className="bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 text-white font-bold py-4 px-8 rounded-2xl text-lg hover:from-morandi-green-600 hover:to-morandi-green-700 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl"
-                >
-                  <CheckCircle className="w-6 h-6" />
-                  返回高级工具页面
-                </Link>
-              );
-            }
-
-            // 检查是否为子工具
-            if (subToolToParentMap[toolId]) {
-              return (
-                <Link
-                  href={`/tools/${subToolToParentMap[toolId]}`}
-                  className="bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 text-white font-bold py-4 px-8 rounded-2xl text-lg hover:from-morandi-green-600 hover:to-morandi-green-700 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl"
-                >
-                  <CheckCircle className="w-6 h-6" />
-                  返回顶层工具
-                </Link>
-              );
-            }
-
-            // 默认返回首页
-            return (
-              <Link
-                href="/"
-                className="bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 text-white font-bold py-4 px-8 rounded-2xl text-lg hover:from-morandi-green-600 hover:to-morandi-green-700 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl"
-              >
-                <CheckCircle className="w-6 h-6" />
-                返回首页继续学习
-              </Link>
-            );
-          })()}
+            <Link
+              href={navigationInfo.href}
+              className="bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 text-white font-bold py-4 px-8 rounded-2xl text-lg hover:from-morandi-green-600 hover:to-morandi-green-700 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl"
+            >
+              <CheckCircle className="w-6 h-6" />
+              {navigationInfo.label}
+            </Link>
           </div>
           <p className="text-morandi-gray-600 mt-3">完成练习后记得保存并获取AI反馈哦！</p>
         </div>
