@@ -274,7 +274,14 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
                     </div>
                     <span className="font-bold">推荐这样写</span>
                   </div>
-                  <p className="text-morandi-green-800 bg-white/50 p-4 rounded-lg">{example.good}</p>
+                  <div className="space-y-3">
+                    <p className="text-sm text-morandi-green-600 leading-relaxed">
+                      将「{example.bad}」运用「{tool.name}」的技巧{tool.mantra && `（口诀：${tool.mantra}）`}改写为：
+                    </p>
+                    <p className="text-morandi-green-800 bg-white/50 p-4 rounded-lg leading-relaxed whitespace-pre-line">
+                      {example.good}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
