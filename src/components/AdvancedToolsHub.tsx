@@ -258,7 +258,7 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
                   <Lightbulb className="w-5 h-5 text-morandi-orange-600" />
                 </div>
                 <div>
-                  <p className="text-morandi-orange-800 font-medium">高阶提示</p>
+                  <p className="text-morandi-orange-800 font-medium">超纲警告</p>
                   <p className="text-morandi-orange-700 text-sm">
                     模式让你在约束中游刃有余；思考让你在创造中独一无二。
                     用理解文学的思路理解科学，用分析历史的眼光分析当下。
