@@ -160,11 +160,11 @@ export async function POST(request: Request) {
 
   if (rateLimitStore.size > RATE_LIMIT_CLEANUP_THRESHOLD) {
     const cutoff = now - RATE_LIMIT_STALE_WINDOW_MS;
-    for (const [key, value] of rateLimitStore.entries()) {
+    rateLimitStore.forEach((value, key) => {
       if (value.activeRequests === 0 && value.lastRequestTime < cutoff) {
         rateLimitStore.delete(key);
       }
-    }
+    });
   }
 
   const state = rateLimitStore.get(ip) ?? { lastRequestTime: 0, activeRequests: 0 };
