@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, ChangeEvent } from 'react';
 import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
 import { getActualEndpoint } from '@/lib/utils';
 import { Essay, EssayVersion, AIConfig } from '@/types';
-import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle, Camera, ImagePlus } from 'lucide-react';
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
@@ -546,6 +546,47 @@ const callPollinationsChatWithFallback = async (
   return executeRequest(0);
 };
 
+const DEFAULT_VISION_PROMPT = '请用中文详细描述这张图片中的主要人物、场景和关键要素，并提炼可以用于写作文的细节和情感线索。';
+
+const readFileAsDataURL = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === 'string') {
+        resolve(result);
+      } else {
+        reject(new Error('无法读取图片内容'));
+      }
+    };
+    reader.onerror = () => {
+      reject(new Error('读取图片失败，请重试'));
+    };
+    reader.readAsDataURL(file);
+  });
+
+const sanitizePlainText = (input: string): string => {
+  if (!isNonEmptyString(input)) {
+    return '';
+  }
+
+  let text = input.replace(/\r\n/g, '\n');
+  text = text.replace(/```[\s\S]*?```/g, (block) => block.replace(/```/g, '').trim());
+  text = text.replace(/\*\*(.*?)\*\*/g, '$1');
+  text = text.replace(/\*(.*?)\*/g, '$1');
+  text = text.replace(/__(.*?)__/g, '$1');
+  text = text.replace(/`([^`]*)`/g, '$1');
+  text = text.replace(/^>\s?/gm, '');
+  text = text.replace(/^#+\s*/gm, '');
+  text = text.replace(/^\s*[-*+]\s+/gm, '');
+  text = text.replace(/^\s*\d+\.\s+/gm, '');
+  text = text.replace(/\u00A0/g, ' ');
+  text = text.replace(/[ \t]+\n/g, '\n');
+  text = text.replace(/\n{3,}/g, '\n\n');
+
+  return text.trim();
+};
+
 function WriteContent() {
   const { addEssay, updateEssay, addEssayVersion, updateEssayVersion, essays, aiConfig, progress, setDailyChallenge, updateHabitTracker } = useAppStore();
   const { showSuccess, showError, showWarning } = useNotificationContext();
@@ -564,6 +605,224 @@ function WriteContent() {
   const [editingEssayId, setEditingEssayId] = useState<string | null>(null);
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
   const [actionItems, setActionItems] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const visionProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [isVisionProcessing, setIsVisionProcessing] = useState(false);
+  const [visionProgress, setVisionProgress] = useState(0);
+  const [visionStatus, setVisionStatus] = useState('');
+  const [visionDescription, setVisionDescription] = useState('');
+  const [visionError, setVisionError] = useState('');
+  const [isImageEssayGenerating, setIsImageEssayGenerating] = useState(false);
+  const [lastVisionModel, setLastVisionModel] = useState<string | null>(null);
+  const [lastVisionWaitMs, setLastVisionWaitMs] = useState<number | null>(null);
+
+  const startVisionProgress = () => {
+    if (visionProgressIntervalRef.current) {
+      clearInterval(visionProgressIntervalRef.current);
+    }
+    setVisionProgress(5);
+    setVisionStatus('图片已上传，排队处理中（大约需要1分钟）...');
+    visionProgressIntervalRef.current = setInterval(() => {
+      setVisionProgress(prev => {
+        if (prev >= 92) {
+          return prev;
+        }
+        const increment = Math.random() * 8 + 2;
+        const next = prev + increment;
+        return next >= 92 ? 92 : next;
+      });
+    }, 1500);
+  };
+
+  const stopVisionProgress = (finalValue?: number) => {
+    if (visionProgressIntervalRef.current) {
+      clearInterval(visionProgressIntervalRef.current);
+      visionProgressIntervalRef.current = null;
+    }
+    if (typeof finalValue === 'number') {
+      setVisionProgress(finalValue);
+    }
+  };
+
+  const resetVisionStates = () => {
+    setVisionError('');
+    setVisionDescription('');
+    setVisionStatus('');
+    setLastVisionModel(null);
+    setLastVisionWaitMs(null);
+    setVisionProgress(0);
+  };
+
+  const requestVisionDescription = async (imageDataUrl: string) => {
+    const response = await fetch('/api/pollinations/vision', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        imageDataUrl,
+        prompt: DEFAULT_VISION_PROMPT,
+      }),
+    });
+
+    const raw = await response.text();
+    let data: { description?: string; model?: string; waitMs?: number | string; error?: string } | null = null;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch {
+      throw new Error(`图片识别接口返回异常：${raw.substring(0, 200)}...`);
+    }
+
+    if (!response.ok) {
+      const message = data?.error || '图片识别失败，请稍后重试';
+      throw new Error(message);
+    }
+
+    if (!data || !isNonEmptyString(data.description)) {
+      throw new Error('未能从图片中识别出可用的描述');
+    }
+
+    const waitValue = typeof data.waitMs === 'string' ? Number.parseInt(data.waitMs, 10) : data.waitMs;
+
+    return {
+      description: data.description,
+      model: data.model ?? null,
+      waitMs: Number.isFinite(waitValue) ? Number(waitValue) : null,
+    };
+  };
+
+  const generateEssayFromImageDescription = async (description: string): Promise<string> => {
+    const usingCustomApi = isNonEmptyString(aiConfig?.apiKey);
+    const tool = selectedTool === 'free-writing' ? null : writingTools.find(t => t.id === selectedTool);
+
+    const instructions: string[] = [
+      '请根据图片内容创作一篇适合小学六年级学生的记叙文作文。',
+      '文章需要有清晰的结构：开头点题、经过描写、细节刻画、结尾升华。',
+      '语言要贴近小学生的表达，但保持生动具体。',
+      '请使用纯文本输出，不要包含任何标题标记、符号列表或 Markdown。',
+      '段落之间使用一个空行分隔，整体长度建议在600字左右。',
+    ];
+
+    if (tool) {
+      instructions.push(`尽量运用《六年级作文成长手册》中“${tool.name}”的写作技巧。`);
+    }
+
+    const prompt = `图片内容描述：\n${description}\n\n${instructions.map((item, index) => `${index + 1}. ${item}`).join('\n')}`;
+
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: '你是一位小学六年级作文指导老师，擅长根据图片线索帮助学生写作，输出内容必须是纯文本。',
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
+
+    if (usingCustomApi && aiConfig) {
+      const essay = await callOpenAIChatCompletion(messages, aiConfig, {
+        temperature: 0.65,
+        maxTokens: 1200,
+      });
+      return sanitizePlainText(essay);
+    }
+
+    const { content: pollinationsEssay, model: usedModel } = await callPollinationsChatWithFallback(messages, {
+      preferredModel: 'openai-large',
+      fallbackModels: ['openai', 'claude-hybridspace'],
+      seed: 101,
+      maxRetries: 3,
+    });
+    console.info('[Pollinations] 使用模型进行图片作文生成:', usedModel);
+    return sanitizePlainText(pollinationsEssay);
+  };
+
+  const handleImageToEssay = async (file: File) => {
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      showWarning('请选择图片文件');
+      return;
+    }
+
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      showWarning('图片过大，请选择小于10MB的图片');
+      return;
+    }
+
+    resetVisionStates();
+    setIsVisionProcessing(true);
+    startVisionProgress();
+    setVisionStatus('正在读取图片...');
+
+    let recognitionCompleted = false;
+
+    try {
+      const imageDataUrl = await readFileAsDataURL(file);
+      setVisionStatus('图片读取成功，等待识别...');
+      const result = await requestVisionDescription(imageDataUrl);
+      stopVisionProgress(100);
+      recognitionCompleted = true;
+      setIsVisionProcessing(false);
+      setVisionDescription(result.description);
+      setLastVisionModel(result.model);
+      setLastVisionWaitMs(result.waitMs ?? null);
+
+      const waitSeconds = result.waitMs ? Math.round(result.waitMs / 1000) : null;
+      setVisionStatus(
+        waitSeconds && waitSeconds > 0
+          ? `识别完成（实际排队约${waitSeconds}秒），正在根据图片生成作文...`
+          : '识别完成，正在根据图片生成作文...'
+      );
+
+      setIsImageEssayGenerating(true);
+      const essay = await generateEssayFromImageDescription(result.description);
+      if (!isNonEmptyString(essay)) {
+        throw new Error('生成的作文内容为空，请重试');
+      }
+
+      setContent(essay);
+      if (!title.trim()) {
+        setTitle('图片里的故事');
+      }
+      setActionItems([]);
+      setFeedback('');
+      setIsFeedbackModalOpen(false);
+      setVisionStatus('作文已生成，并写入稿纸');
+      showSuccess('已根据图片生成作文，快来润色吧！');
+    } catch (error) {
+      if (!recognitionCompleted) {
+        stopVisionProgress(0);
+      }
+      const message = error instanceof Error ? error.message : '未知错误';
+      setVisionError(message);
+      setVisionStatus(recognitionCompleted ? '作文生成失败，请稍后重试' : '图片识别失败，请重试');
+      showError(`图片转作文失败：${message}`);
+    } finally {
+      if (visionProgressIntervalRef.current) {
+        clearInterval(visionProgressIntervalRef.current);
+        visionProgressIntervalRef.current = null;
+      }
+      setIsVisionProcessing(false);
+      setIsImageEssayGenerating(false);
+    }
+  };
+
+  const handleImageInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      void handleImageToEssay(file);
+    }
+    event.target.value = '';
+  };
+
+  const handleTriggerImageSelect = () => {
+    fileInputRef.current?.click();
+  };
 
   // 计算已解锁练习的工具（自由写作始终可选）
   const availablePracticeTools = writingTools.filter(tool => {
@@ -706,6 +965,14 @@ ${simplifiedHistory}
       }
     }
   }, [availablePracticeTools, selectedTool]);
+
+  useEffect(() => {
+    return () => {
+      if (visionProgressIntervalRef.current) {
+        clearInterval(visionProgressIntervalRef.current);
+      }
+    };
+  }, []);
 
   const saveEssay = () => {
     // 检查是否完成了今日的每日挑战
@@ -1257,6 +1524,95 @@ ${simplifiedHistory}
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* 图片生成作文 */}
+          <div className="bg-white rounded-2xl shadow-card p-6 border border-morandi-gray-200">
+            <h3 className="text-2xl font-bold text-morandi-gray-800 mb-4 flex items-center gap-2">
+              <div className="p-2 bg-morandi-blue-100 rounded-lg">
+                <Camera className="w-4 h-4 text-morandi-blue-600" />
+              </div>
+              图片生成作文
+            </h3>
+            <p className="text-sm text-morandi-gray-600 mb-4">
+              上传或拍摄一张照片，Pollinations 会识别内容并帮助你生成一篇纯文本作文。连续识别会自动排队，间隔约 1 分钟。
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleImageInputChange}
+            />
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={handleTriggerImageSelect}
+                disabled={isVisionProcessing || isImageEssayGenerating}
+                className="w-full bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white font-medium py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+              >
+                {isVisionProcessing || isImageEssayGenerating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    处理中...
+                  </>
+                ) : (
+                  <>
+                    <ImagePlus className="w-4 h-4" />
+                    上传或拍摄照片
+                  </>
+                )}
+              </button>
+
+              {isVisionProcessing && (
+                <div className="space-y-2">
+                  <div className="w-full h-2 bg-morandi-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-2 bg-morandi-blue-500 transition-all duration-300"
+                      style={{ width: `${Math.min(visionProgress, 100)}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-morandi-gray-500">
+                    {visionStatus || '正在识别图片，请稍候...'}
+                  </p>
+                </div>
+              )}
+
+              {!isVisionProcessing && visionStatus && (
+                <p className={`text-xs ${visionError ? 'text-morandi-pink-600' : 'text-morandi-gray-600'}`}>
+                  {visionStatus}
+                </p>
+              )}
+
+              {isImageEssayGenerating && (
+                <div className="flex items-center gap-2 text-xs text-morandi-blue-700">
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                  正在根据图片生成作文...
+                </div>
+              )}
+
+              {visionDescription && (
+                <div className="bg-morandi-blue-50 border border-morandi-blue-200 rounded-xl p-3">
+                  <p className="text-xs text-morandi-blue-600 mb-1">图片识别摘要</p>
+                  <p className="text-sm text-morandi-blue-800 whitespace-pre-line">{visionDescription}</p>
+                  {(lastVisionModel || (typeof lastVisionWaitMs === 'number' && Number.isFinite(lastVisionWaitMs))) && (
+                    <p className="mt-2 text-[11px] text-morandi-blue-500">
+                      {lastVisionModel ? `使用模型：${lastVisionModel}` : ''}
+                      {typeof lastVisionWaitMs === 'number' && Number.isFinite(lastVisionWaitMs)
+                        ? `${lastVisionModel ? ' · ' : ''}排队约${Math.round(lastVisionWaitMs / 1000)}秒`
+                        : ''}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {visionError && (
+                <div className="bg-morandi-pink-50 border border-morandi-pink-200 rounded-xl p-3 text-sm text-morandi-pink-700">
+                  {visionError}
+                </div>
+              )}
             </div>
           </div>
 
