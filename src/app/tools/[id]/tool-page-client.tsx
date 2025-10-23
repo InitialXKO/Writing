@@ -67,7 +67,7 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
             const topLevelTools = ['tool-40', 'tool-41', 'tool-42', 'tool-43', 'tool-44'];
 
             // 子工具到顶层工具的映射
-            const subToolToParentMap = {
+            const subToolToParentMap: Record<string, string> = {
               // 思路整理法的子工具
               'tool-7': 'tool-40',
               'tool-8': 'tool-40',
@@ -490,7 +490,7 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
             const topLevelTools = ['tool-40', 'tool-41', 'tool-42', 'tool-43', 'tool-44'];
 
             // 子工具到顶层工具的映射
-            const subToolToParentMap = {
+            const subToolToParentMap: Record<string, string> = {
               // 思路整理法的子工具
               'tool-7': 'tool-40',
               'tool-8': 'tool-40',
