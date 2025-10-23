@@ -46,10 +46,10 @@ export default function PasswordInput({ toolId, correctPassword, onUnlock }: Pas
         <div className="p-2 bg-morandi-purple-500/20 rounded-lg">
           <Lock className="w-5 h-5 text-morandi-purple-700" />
         </div>
-        不要恐慌
+        超纲警告
       </h2>
       <p className="text-morandi-purple-700 mb-4">
-        此工具需要输入密码才能解锁，不要恐慌，密码就在附近
+        此工具属于超纲内容，需要输入密码才能解锁
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
