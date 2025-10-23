@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
 import { getActualEndpoint } from '@/lib/utils';
 import { Essay, EssayVersion, AIConfig } from '@/types';
-import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle, Camera, ImagePlus } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, Camera, ImagePlus } from 'lucide-react';
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';

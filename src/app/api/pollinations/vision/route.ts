@@ -145,8 +145,11 @@ export async function POST(request: Request) {
     }
 
     type PollinationsChoice = { message?: { content?: string }; model?: string };
-    const choices = Array.isArray((data as { choices?: PollinationsChoice[] })?.choices)
-      ? (data as { choices?: PollinationsChoice[] }).choices
+    const pollinationsData = (data && typeof data === 'object'
+      ? (data as { choices?: PollinationsChoice[] })
+      : null);
+    const choices: PollinationsChoice[] = Array.isArray(pollinationsData?.choices)
+      ? pollinationsData?.choices ?? []
       : [];
     const primaryChoice = choices[0];
     const content = primaryChoice?.message?.content;
