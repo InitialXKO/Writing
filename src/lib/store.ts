@@ -50,6 +50,13 @@ export const canUnlockTool = (toolId: string, progress: StudentProgress, tools: 
 
   const conditions = tool.unlockConditions;
 
+  // 检查密码解锁要求
+  if (conditions.password) {
+    // 密码解锁需要特殊处理，不在这里检查
+    // 这里返回true表示满足其他条件，但需要在UI层处理密码输入
+    return true;
+  }
+
   // 检查前置工具要求
   if (conditions.prerequisiteTools) {
     for (const prereqId of conditions.prerequisiteTools) {
