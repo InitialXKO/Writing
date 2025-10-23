@@ -171,7 +171,7 @@ export async function POST(request: Request) {
 
   if (state.activeRequests >= MAX_CONCURRENT_REQUESTS_PER_IP) {
     return NextResponse.json(
-      { error: '请求过于频繁，请稍后再试' },
+      { error: '请求过于频繁，请稍后再试', retryAfter: '3' },
       {
         status: 429,
         headers: {
@@ -185,7 +185,7 @@ export async function POST(request: Request) {
   if (elapsed < MIN_INTERVAL_MS) {
     const retryAfter = Math.ceil((MIN_INTERVAL_MS - elapsed) / 1000);
     return NextResponse.json(
-      { error: '请求过于频繁，请稍后再试' },
+      { error: '请求过于频繁，请稍后再试', retryAfter: retryAfter.toString() },
       {
         status: 429,
         headers: {

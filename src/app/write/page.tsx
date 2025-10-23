@@ -409,6 +409,8 @@ const POLLINATIONS_DEFAULT_MODELS = ['openai', 'mistral', 'llama'] as const;
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const callOpenAIChatCompletion = async (
   messages: ChatMessage[],
   config: AIConfig,
@@ -472,9 +474,10 @@ const callPollinationsChatWithFallback = async (
     fallbackModels?: string[];
     seed?: number;
     timeoutMs?: number;
+    maxRetries?: number;
   } = {}
 ): Promise<{ content: string; model: string }> => {
-  const { preferredModel, fallbackModels, seed = 42, timeoutMs } = options;
+  const { preferredModel, fallbackModels, seed = 42, timeoutMs, maxRetries = 2 } = options;
 
   const orderedModels = Array.from(
     new Set(
@@ -485,43 +488,62 @@ const callPollinationsChatWithFallback = async (
   const primaryModel = orderedModels[0] ?? 'openai';
   const secondaryModels = orderedModels.slice(1);
 
-  const response = await fetch('/api/pollinations/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messages,
-      seed,
-      model: primaryModel,
-      fallbackModels: secondaryModels,
-      timeoutMs,
-      jsonMode: false,
-    }),
-  });
+  const executeRequest = async (attempt: number): Promise<{ content: string; model: string }> => {
+    const response = await fetch('/api/pollinations/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages,
+        seed,
+        model: primaryModel,
+        fallbackModels: secondaryModels,
+        timeoutMs,
+        jsonMode: false,
+      }),
+    });
 
-  const text = await response.text();
-  let data: { content?: string; model?: string; error?: string } | null = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    throw new Error(`Pollinations代理返回的响应无法解析: ${text.substring(0, 200)}...`);
-  }
-
-  if (!response.ok) {
-    const retryAfter = response.headers.get('Retry-After');
-    const errorMessage = data?.error || 'Pollinations代理请求失败';
-    if (retryAfter) {
-      throw new Error(`${errorMessage}（请在 ${retryAfter} 秒后重试）`);
+    if (response.status === 429 && attempt < maxRetries) {
+      const retryAfterHeader = response.headers.get('Retry-After');
+      const parsedRetryAfter = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : Number.NaN;
+      const waitMs = Number.isFinite(parsedRetryAfter) && parsedRetryAfter > 0 ? parsedRetryAfter * 1000 : 3000;
+      const waitSeconds = Math.max(1, Math.round(waitMs / 1000));
+      console.info(
+        `[Pollinations] 命中速率限制，${waitSeconds} 秒后重试（第 ${attempt + 1} 次重试）`
+      );
+      await sleep(waitMs);
+      return executeRequest(attempt + 1);
     }
-    throw new Error(errorMessage);
-  }
 
-  if (!data || !isNonEmptyString(data.content)) {
-    throw new Error('Pollinations代理未返回有效的内容');
-  }
+    const text = await response.text();
+    let data: { content?: string; model?: string; error?: string; retryAfter?: string | number } | null = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      throw new Error(`Pollinations代理返回的响应无法解析: ${text.substring(0, 200)}...`);
+    }
 
-  return { content: data.content, model: data.model ?? primaryModel };
+    if (!response.ok) {
+      const retryAfterHeader = response.headers.get('Retry-After');
+      const fallbackRetryAfter =
+        data?.retryAfter && Number.isFinite(Number(data.retryAfter)) ? String(data.retryAfter) : undefined;
+      const retryAfter = retryAfterHeader || fallbackRetryAfter;
+      const errorMessage = data?.error || 'Pollinations代理请求失败';
+      if (retryAfter) {
+        throw new Error(`${errorMessage}（请在 ${retryAfter} 秒后重试）`);
+      }
+      throw new Error(errorMessage);
+    }
+
+    if (!data || !isNonEmptyString(data.content)) {
+      throw new Error('Pollinations代理未返回有效的内容');
+    }
+
+    return { content: data.content, model: data.model ?? primaryModel };
+  };
+
+  return executeRequest(0);
 };
 
 function WriteContent() {
@@ -601,6 +623,7 @@ ${simplifiedHistory}
           {
             preferredModel: 'openai',
             seed: 42,
+            maxRetries: 3,
           }
         );
         overallFeedback = pollinationsFeedback;
@@ -944,6 +967,7 @@ ${simplifiedHistory}
           {
             preferredModel: 'openai',
             seed: 42,
+            maxRetries: 3,
           }
         );
         aiFeedback = pollinationsFeedback;
