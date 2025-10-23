@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
-import { getActualEndpoint } from '@/lib/utils';
 import { Essay, EssayVersion } from '@/types';
 import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -426,19 +425,14 @@ function WriteContent() {
   });
 
   const runOverallReview = async (essayId: string) => {
-    if (!aiConfig?.apiKey) {
-      return;
-    }
-
     const { essays: currentEssays } = useAppStore.getState();
     const essay = currentEssays.find(item => item.id === essayId);
     if (!essay) {
       return;
     }
 
-    const { latestLabel, latestContent, formattedHistory } = prepareEssayHistoryData(essay);
+    const { latestLabel, latestContent } = prepareEssayHistoryData(essay);
     const simplifiedHistory = generateSimplifiedVersionHistory(essay);
-    const endpoint = getActualEndpoint(aiConfig.baseURL);
 
     const overallPrompt = `请作为小学六年级作文指导老师，基于自由写作的评价标准，对作文《${essay.title}》进行整体批改。请关注学生在不同版本中的进步，以及仍可提升的方向。
 
@@ -456,14 +450,13 @@ ${simplifiedHistory}
 请保持温暖、鼓励的语气，同时指出持续精进的方向。`;
 
     try {
-      const response = await fetch(`${endpoint}/chat/completions`, {
+      const response = await fetch('/api/ai', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${aiConfig.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: aiConfig.model || 'gpt-4',
+          model: aiConfig?.model,
           messages: [
             {
               role: 'system',
@@ -475,44 +468,71 @@ ${simplifiedHistory}
             },
           ],
           temperature: 0.7,
-          max_tokens: 1500,
+          maxTokens: 1500,
+          apiKey: aiConfig?.apiKey,
+          baseURL: aiConfig?.baseURL,
         }),
       });
 
+      const contentType = response.headers.get('content-type') || '';
+      const responseText = await response.text();
+
+      if (response.status === 429) {
+        let warningMessage = '请求过于频繁，请稍后再试';
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = JSON.parse(responseText);
+            warningMessage = errorData?.error?.message || warningMessage;
+          } catch (parseError) {
+            console.error('整体批改限流信息解析失败:', parseError);
+          }
+        }
+        if (typeof showWarning === 'function') {
+          showWarning(warningMessage);
+        }
+        return;
+      }
+
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`整体批改请求失败: ${response.status} ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}...`);
+        throw new Error(`整体批改请求失败: ${response.status} ${response.statusText}\n响应内容: ${responseText.substring(0, 200)}...`);
       }
 
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const responseText = await response.text();
-        throw new Error(`整体批改返回非JSON响应，内容类型: ${contentType || 'unknown'}\n响应内容预览: ${responseText.substring(0, 200)}...`);
+      let data: any;
+      try {
+        if (contentType.includes('application/json')) {
+          data = responseText ? JSON.parse(responseText) : {};
+        } else {
+          data = {
+            choices: [
+              {
+                message: {
+                  content: responseText,
+                },
+              },
+            ],
+          };
+        }
+      } catch (parseError) {
+        throw new Error(`整体批改返回非JSON响应: ${(parseError as Error).message}`);
       }
 
-      const data = await response.json();
-
-      // 增加更多容错判断，处理不同API可能的响应结构差异
       if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
         console.error('Invalid API response structure:', data);
         return;
       }
 
       const choice = data.choices[0];
-      if (!choice || !choice.message || typeof choice.message.content !== 'string') {
-        console.error('Invalid choice structure:', choice);
-        // 记录原始响应以便调试
-        console.error('Raw response data:', data);
-        return;
-      }
+      const overallFeedback =
+        choice?.message?.content ??
+        data.message ??
+        data.response ??
+        '';
 
-      const overallFeedback = choice.message.content;
-      if (overallFeedback) {
+      if (typeof overallFeedback === 'string' && overallFeedback.trim()) {
         updateEssay(essayId, { feedback: overallFeedback });
       }
     } catch (error: unknown) {
       console.error('整体批改失败:', error);
-      // 向用户显示错误提示
       if (typeof showError === 'function') {
         const errorMessage = error instanceof Error ? error.message : String(error);
         showError(`整体批改失败: ${errorMessage || '未知错误'}`);
@@ -715,9 +735,9 @@ ${simplifiedHistory}
     }
 
     if (!aiConfig?.apiKey) {
-      // 没有API密钥时直接跳转到设置页面
-      window.location.href = '/settings';
-      return;
+      if (typeof showWarning === 'function') {
+        showWarning('未配置API密钥，系统将使用 Pollinations 公共通道，响应速度可能略慢。');
+      }
     }
 
     setIsGenerating(true);
@@ -826,55 +846,87 @@ ${simplifiedHistory}
 
 继续加油！`;
 
-      // 解析实际 API 端点
-      const endpoint = getActualEndpoint(aiConfig?.baseURL);
-      console.log('API Endpoint:', endpoint); // 调试日志
-
-      // 调用真实的AI API
-      const response = await fetch(`${endpoint}/chat/completions`, {
+      const response = await fetch('/api/ai', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${aiConfig.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: aiConfig.model || 'gpt-4',
+          model: aiConfig?.model,
           messages: [
             {
               role: 'system',
-              content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。'
+              content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。',
             },
             {
               role: 'user',
-              content: prompt
-            }
+              content: prompt,
+            },
           ],
           temperature: 0.7,
-          max_tokens: 1500,
+          maxTokens: 1500,
+          apiKey: aiConfig?.apiKey,
+          baseURL: aiConfig?.baseURL,
         }),
       });
 
+      const contentType = response.headers.get('content-type') || '';
+      const responseText = await response.text();
+
+      if (response.status === 429) {
+        let warningMessage = '请求过于频繁，请稍后再试';
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = JSON.parse(responseText);
+            warningMessage = errorData?.error?.message || warningMessage;
+          } catch (parseError) {
+            console.error('AI批改限流信息解析失败:', parseError);
+          }
+        }
+        if (typeof showWarning === 'function') {
+          showWarning(warningMessage);
+        }
+        setFeedback('');
+        setActionItems([]);
+        return;
+      }
+
       if (!response.ok) {
-        // 尝试读取错误响应体
-        const errorText = await response.text();
-        console.error('API Error Response:', errorText);
-        throw new Error(`API请求失败: ${response.status} ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}...`);
+        console.error('API Error Response:', responseText);
+        throw new Error(`API请求失败: ${response.status} ${response.statusText}\n响应内容: ${responseText.substring(0, 200)}...`);
       }
 
-      // 检查响应内容类型
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const responseText = await response.text();
-        console.error('Non-JSON Response:', responseText);
-        throw new Error(`API返回非JSON响应，内容类型: ${contentType || 'unknown'}\n响应内容预览: ${responseText.substring(0, 200)}...`);
+      let data: any;
+      try {
+        if (contentType.includes('application/json')) {
+          data = responseText ? JSON.parse(responseText) : {};
+        } else {
+          data = {
+            choices: [
+              {
+                message: {
+                  content: responseText,
+                },
+              },
+            ],
+          };
+        }
+      } catch (parseError) {
+        throw new Error(`AI响应解析失败: ${(parseError as Error).message}`);
       }
 
-      const data = await response.json();
-      const aiFeedback = data.choices[0]?.message?.content || 'AI批改结果为空';
+      let aiFeedback =
+        data.choices?.[0]?.message?.content ??
+        data.message ??
+        data.response ??
+        '';
+
+      if (typeof aiFeedback !== 'string' || !aiFeedback.trim()) {
+        aiFeedback = 'AI批改结果为空';
+      }
 
       setFeedback(aiFeedback);
 
-      // 生成行动项
       const generatedActionItems = generateActionItems(aiFeedback);
       setActionItems(generatedActionItems);
 
