@@ -7,13 +7,6 @@
       "use": "@vercel/next"
     }
   ],
-  "functions": {
-    "src/app/api/recognize/route.ts": {
-      "runtime": "nodejs18.x",
-      "memory": 1024,
-      "maxDuration": 300
-    }
-  },
   "routes": [
     {
       "src": "/api/recognize",
