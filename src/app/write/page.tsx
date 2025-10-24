@@ -11,6 +11,7 @@ import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
 import CompositionPaper from '@/components/CompositionPaper';
+import MediaInput from '@/components/MediaInput';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
@@ -564,6 +565,12 @@ function WriteContent() {
   const [editingEssayId, setEditingEssayId] = useState<string | null>(null);
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
   const [actionItems, setActionItems] = useState<any[]>([]);
+  
+  // 媒体输入相关状态
+  const [contentType, setContentType] = useState<'text' | 'image' | 'audio'>('text');
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [audioUrl, setAudioUrl] = useState<string>('');
+  const [transcribedText, setTranscribedText] = useState<string>('');
 
   // 计算已解锁练习的工具（自由写作始终可选）
   const availablePracticeTools = writingTools.filter(tool => {
@@ -571,6 +578,131 @@ function WriteContent() {
     const level = progress.levels.find(l => l.toolId === tool.id);
     return !!level?.testPassed;
   });
+
+  // 处理图片上传或拍摄
+  const handleImageCapture = async (base64Image: string) => {
+    try {
+      showSuccess('正在识别手写文字...');
+      setImageUrl(base64Image);
+      setContentType('image');
+      
+      // 调用 Vision API 识别手写文字
+      const response = await fetch('https://text.pollinations.ai/openai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'openai',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: '请识别这张手写作文图片中的所有文字内容，并按照原文格式输出。只输出识别到的文字，不要添加任何解释或评论。' },
+              {
+                type: 'image_url',
+                image_url: { url: base64Image }
+              }
+            ]
+          }],
+          max_tokens: 2000
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`识别失败: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const recognizedText = data.choices?.[0]?.message?.content || '';
+      
+      if (recognizedText) {
+        setTranscribedText(recognizedText);
+        setContent(recognizedText);
+        showSuccess('手写文字识别成功！');
+      } else {
+        showError('未能识别到文字内容');
+      }
+    } catch (error) {
+      console.error('图片识别失败:', error);
+      showError('图片识别失败，请重试');
+      handleClearMedia();
+    }
+  };
+
+  // 处理音频录制
+  const handleAudioCapture = async (base64Audio: string) => {
+    try {
+      showSuccess('正在转录语音...');
+      setAudioUrl(base64Audio);
+      setContentType('audio');
+      
+      // 从 base64 中提取音频数据
+      const base64Data = base64Audio.split(',')[1];
+      
+      // 调用 Speech-to-Text API
+      const response = await fetch('https://text.pollinations.ai/openai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'openai-audio',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: '请转录这段音频：' },
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: base64Data,
+                  format: 'wav'
+                }
+              }
+            ]
+          }]
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`转录失败: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const transcription = data.choices?.[0]?.message?.content || '';
+      
+      if (transcription) {
+        setTranscribedText(transcription);
+        setContent(transcription);
+        showSuccess('语音转录成功！');
+      } else {
+        showError('未能转录音频内容');
+      }
+    } catch (error) {
+      console.error('音频转录失败:', error);
+      showError('音频转录失败，请重试');
+      handleClearMedia();
+    }
+  };
+
+  // 清除媒体并恢复稿纸
+  const handleClearMedia = () => {
+    setContentType('text');
+    setImageUrl('');
+    setAudioUrl('');
+    setTranscribedText('');
+  };
+
+  const handleContentUpdate = (value: string) => {
+    setContent(value);
+    if (contentType !== 'text') {
+      setTranscribedText(value);
+    }
+  };
+
+  const handleReCapture = () => {
+    handleClearMedia();
+    setIsFeedbackModalOpen(false);
+  };
 
   const runOverallReview = async (essayId: string) => {
     const { essays: currentEssays } = useAppStore.getState();
@@ -655,8 +787,13 @@ ${simplifiedHistory}
       const essay = essays.find(e => e.id === essayId);
       if (essay) {
         setTitle(essay.title);
-        setContent(essay.content);
         setSelectedTool(essay.toolUsed);
+        const essayContent = essay.transcribedText || essay.content || '';
+        setContent(essayContent);
+        setTranscribedText(essay.transcribedText || '');
+        setContentType(essay.contentType || 'text');
+        setImageUrl(essay.imageUrl || '');
+        setAudioUrl(essay.audioUrl || '');
       }
     }
 
@@ -667,7 +804,12 @@ ${simplifiedHistory}
         if (essay && essay.versions) {
           const version = essay.versions.find(v => v.id === versionId);
           if (version) {
-            setContent(version.content);
+            const versionContent = version.transcribedText || version.content || '';
+            setContent(versionContent);
+            setTranscribedText(version.transcribedText || '');
+            setContentType(version.contentType || essay?.contentType || 'text');
+            setImageUrl(version.imageUrl || '');
+            setAudioUrl(version.audioUrl || '');
           }
         }
       }
@@ -724,7 +866,12 @@ ${simplifiedHistory}
       // 如果是编辑已存在的作文，添加新版本
       if (editingVersionId) {
         // 如果是编辑特定版本，保存为新版本，基于该版本创建分支
-        addEssayVersion(editingEssayId, content, feedback, actionItems, editingVersionId);
+        addEssayVersion(editingEssayId, content, feedback, actionItems, editingVersionId, {
+          contentType,
+          imageUrl,
+          audioUrl,
+          transcribedText
+        });
         showSuccess('新版本已保存到作文中');
       } else {
         // 如果是编辑当前版本，更新作文
@@ -732,6 +879,10 @@ ${simplifiedHistory}
           title,
           content,
           toolUsed: selectedTool,
+          contentType,
+          imageUrl,
+          audioUrl,
+          transcribedText
         });
         showSuccess('作文已更新');
       }
@@ -741,6 +892,10 @@ ${simplifiedHistory}
         title,
         content,
         toolUsed: selectedTool,
+        contentType,
+        imageUrl,
+        audioUrl,
+        transcribedText
       });
       showSuccess('作文已保存到我的作文中');
     }
@@ -768,9 +923,34 @@ ${simplifiedHistory}
       return;
     }
 
-    if (!title.trim() || !content.trim()) {
-      showWarning('请填写标题和内容');
+    if (!title.trim()) {
+      showWarning('请填写作文标题');
       return;
+    }
+
+    if (contentType === 'text') {
+      if (!content.trim()) {
+        showWarning('请填写作文内容');
+        return;
+      }
+    } else if (contentType === 'image') {
+      if (!imageUrl) {
+        showWarning('请上传或拍摄手写作文图片');
+        return;
+      }
+      if (!content.trim()) {
+        showWarning('手写作文正在识别中，请稍候或手动补充识别结果');
+        return;
+      }
+    } else if (contentType === 'audio') {
+      if (!audioUrl) {
+        showWarning('请录制语音作文');
+        return;
+      }
+      if (!content.trim()) {
+        showWarning('语音转录尚未完成，请稍候或手动补充文本');
+        return;
+      }
     }
 
     // 检查行动项完成情况
@@ -1204,12 +1384,51 @@ ${simplifiedHistory}
                 </div>
                 作文内容
               </label>
-              <CompositionPaper
-                value={content}
-                onChange={setContent}
-                placeholder="开始你的创作吧...运用你学到的写作技巧"
-                className="w-full"
-              />
+
+              {contentType === 'text' ? (
+                <>
+                  <CompositionPaper
+                    value={content}
+                    onChange={handleContentUpdate}
+                    placeholder="开始你的创作吧...运用你学到的写作技巧"
+                    className="w-full"
+                  />
+
+                  <div className="mt-6 p-4 bg-morandi-blue-50 border border-morandi-blue-100 rounded-xl">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-morandi-blue-800">或者试试手写/语音输入</h3>
+                      <span className="text-xs text-morandi-blue-600">上传后将替换稿纸</span>
+                    </div>
+                    <MediaInput
+                      onImageCapture={handleImageCapture}
+                      onAudioCapture={handleAudioCapture}
+                      currentImage={imageUrl}
+                      currentAudio={audioUrl}
+                      onClear={handleClearMedia}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <MediaInput
+                    onImageCapture={handleImageCapture}
+                    onAudioCapture={handleAudioCapture}
+                    currentImage={contentType === 'image' ? imageUrl : ''}
+                    currentAudio={contentType === 'audio' ? audioUrl : ''}
+                    onClear={handleClearMedia}
+                  />
+
+                  <div className="mt-6">
+                    <label className="block text-sm font-medium text-morandi-gray-700 mb-2">识别结果（可在此修改文本）</label>
+                    <textarea
+                      value={content}
+                      onChange={(e) => handleContentUpdate(e.target.value)}
+                      className="w-full min-h-[200px] p-4 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white"
+                      placeholder="系统会自动识别你的手写或语音，如果有误可以在这里修改~"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1314,7 +1533,11 @@ ${simplifiedHistory}
         actionItems={actionItems}
         onActionItemUpdate={handleActionItemUpdate}
         onReReview={handleReReview}
-        onContentUpdate={setContent}
+        onContentUpdate={handleContentUpdate}
+        contentType={contentType}
+        imageUrl={imageUrl}
+        audioUrl={audioUrl}
+        onReCapture={handleReCapture}
       />
 
       {/* 确认对话框 */}
