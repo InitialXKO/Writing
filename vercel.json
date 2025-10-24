@@ -5,13 +5,17 @@
     {
       "src": "package.json",
       "use": "@vercel/next"
+    },
+    {
+      "src": "api/recognize/index.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/recognize",
       "methods": ["GET", "POST"],
-      "dest": "/src/app/api/recognize/route.ts"
+      "dest": "/api/recognize/index.js"
     }
   ]
 }
