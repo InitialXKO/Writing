@@ -78,7 +78,7 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
                 <Lightbulb className="w-5 h-5" />
                 <span className="font-medium">超纲警告</span>
               </div>
-              <p className="text-white font-bold text-lg mt-1">从模板到动态模式组合</p>
+              <p className="text-white font-bold text-lg mt-1">模式让你在约束中游刃有余；思考让你在创造中独一无二。</p>
             </div>
           </div>
         </div>
