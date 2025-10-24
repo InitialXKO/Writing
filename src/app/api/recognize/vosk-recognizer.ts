@@ -75,26 +75,14 @@ export class VoskRecognizer {
   }
 
   private async getModelPath(): Promise<string> {
-    // 在实际部署中，模型应该被下载到 /tmp/vosk-model 目录
-    // 这里返回一个默认的模型路径
-
-    const fs = require('fs');
-    const path = require('path');
-
-    const possiblePaths = [
-      '/tmp/vosk-model',
-      './models/vosk-model',
-      path.join(process.cwd(), 'models', 'vosk-model')
-    ];
-
-    for (const modelPath of possiblePaths) {
-      if (fs.existsSync(modelPath)) {
-        return modelPath;
-      }
+    // 使用新的模型下载机制
+    try {
+      const { ensureModel } = await import('./download-model');
+      return await ensureModel();
+    } catch (error) {
+      console.error('模型下载失败:', error);
+      throw error;
     }
-
-    // 如果没有找到模型，抛出错误
-    throw new Error('Vosk模型文件未找到。请确保模型已下载到正确位置。');
   }
 
   private async realRecognition(audioBuffer: ArrayBuffer): Promise<{
