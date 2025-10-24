@@ -34,14 +34,20 @@ class VoskRecognizer {
       // 将音频Blob转换为16kHz单声道PCM格式
       const pcmBuffer = await this.convertAudioToPCM(audioBlob);
 
-      // 调用Vosk API
+      // 调用Vosk API，设置15秒超时
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       const response = await fetch(this.apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/octet-stream',
         },
         body: pcmBuffer,
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`Vosk API请求失败: ${response.status}`);
@@ -57,6 +63,17 @@ class VoskRecognizer {
       };
     } catch (error) {
       this.isRecognizing = false;
+
+      // 检查是否是超时错误
+      if ((error as Error).name === 'AbortError') {
+        console.warn('Vosk API调用超时');
+        // 返回一个明确的超时结果而不是模拟结果
+        return {
+          text: '语音识别服务响应超时，请稍后重试',
+          confidence: 0.0,
+          words: []
+        };
+      }
 
       // 如果Vosk API调用失败，使用浏览器内置的SpeechRecognition作为备选方案
       console.warn('Vosk识别失败，尝试使用浏览器内置API:', error);
