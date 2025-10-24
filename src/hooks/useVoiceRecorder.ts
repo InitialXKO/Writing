@@ -32,11 +32,12 @@ export const useVoiceRecorder = (): UseVoiceRecorderReturn => {
   const [segments, setSegments] = useState<VoiceSegment[]>([]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const segmentAudioChunksRef = useRef<Record<string, Blob[]>>({});
   const startTimeRef = useRef<number>(0);
   const segmentStartTimeRef = useRef<number>(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const segmentTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const currentSegmentIdRef = useRef<string>('');
 
   // 分段时长设置（毫秒）
   const SEGMENT_DURATION = 20000; // 20秒
@@ -58,8 +59,9 @@ export const useVoiceRecorder = (): UseVoiceRecorderReturn => {
 
   const createNewSegment = (isFirst: boolean = false) => {
     const now = Date.now();
+    const segmentId = `segment-${now}`;
     const segment: VoiceSegment = {
-      id: `segment-${now}`,
+      id: segmentId,
       startTime: isFirst ? now : now - OVERLAP_DURATION,
       endTime: 0,
       duration: 0,
@@ -68,8 +70,12 @@ export const useVoiceRecorder = (): UseVoiceRecorderReturn => {
       isProcessed: false
     };
 
+    // 为新分段初始化音频缓冲区
+    segmentAudioChunksRef.current[segmentId] = [];
+
     setSegments(prev => [...prev, segment]);
     segmentStartTimeRef.current = now;
+    currentSegmentIdRef.current = segmentId;
 
     // 设置下一个分段的定时器
     if (segmentTimerRef.current) {
@@ -79,54 +85,59 @@ export const useVoiceRecorder = (): UseVoiceRecorderReturn => {
     segmentTimerRef.current = setTimeout(() => {
       // 保存当前分段并创建新分段
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        // 这里需要实现分段逻辑
-        // 为了简化，我们先创建新的分段
+        // 强制保存当前数据
+        mediaRecorderRef.current.requestData();
+        // 创建新的分段
         createNewSegment(false);
       }
-    }, SEGMENT_DURATION);
+    }, SEGMENT_DURATION - OVERLAP_DURATION);
   };
 
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      const mediaRecorder = new MediaRecorder(stream);
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
       mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      segmentAudioChunksRef.current = {};
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+        if (event.data.size > 0 && currentSegmentIdRef.current) {
+          // 将数据添加到当前分段
+          if (!segmentAudioChunksRef.current[currentSegmentIdRef.current]) {
+            segmentAudioChunksRef.current[currentSegmentIdRef.current] = [];
+          }
+          segmentAudioChunksRef.current[currentSegmentIdRef.current].push(event.data);
         }
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const now = Date.now();
 
-        // 更新最后一个分段
+        // 为所有分段创建音频blob
         setSegments(prev => {
-          if (prev.length > 0) {
-            const lastSegment = prev[prev.length - 1];
-            return prev.map(segment =>
-              segment.id === lastSegment.id
-                ? {
-                    ...segment,
-                    endTime: now,
-                    duration: now - segment.startTime,
-                    audioBlob
-                  }
-                : segment
-            );
-          }
-          return prev;
+          return prev.map(segment => {
+            if (segment.audioBlob === null && segmentAudioChunksRef.current[segment.id]) {
+              const audioBlob = new Blob(segmentAudioChunksRef.current[segment.id], { type: 'audio/webm' });
+              return {
+                ...segment,
+                endTime: segment.endTime || now,
+                duration: segment.duration || (now - segment.startTime),
+                audioBlob
+              };
+            }
+            return segment;
+          });
         });
 
-        audioChunksRef.current = [];
+        // 清理音频缓冲区
+        segmentAudioChunksRef.current = {};
       };
 
-      // 开始录制
-      mediaRecorder.start();
+      // 开始录制，每5秒保存一次数据
+      mediaRecorder.start(5000);
       setIsRecording(true);
       setIsPaused(false);
       startTimeRef.current = Date.now();
@@ -194,18 +205,19 @@ export const useVoiceRecorder = (): UseVoiceRecorderReturn => {
         clearTimeout(segmentTimerRef.current);
       }
 
-      // 更新最后一个分段的时间
+      // 更新所有未完成分段的时间
       const now = Date.now();
       setSegments(prev => {
-        if (prev.length > 0) {
-          const lastSegment = prev[prev.length - 1];
-          return prev.map(segment =>
-            segment.id === lastSegment.id
-              ? { ...segment, endTime: now, duration: now - segment.startTime }
-              : segment
-          );
-        }
-        return prev;
+        return prev.map(segment => {
+          if (segment.endTime === 0) {
+            return {
+              ...segment,
+              endTime: now,
+              duration: now - segment.startTime
+            };
+          }
+          return segment;
+        });
       });
     }
   };
