@@ -69,7 +69,7 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
               </div>
               <div>
                 <h1 className="text-3xl font-bold mb-2">高级思维工具集</h1>
-                <p className="text-morandi-purple-100 text-lg">作文模式网络 - 从模板到动态模式组合</p>
+                <p className="text-morandi-purple-100 text-lg">作文思维方法 - 从套路到灵活运用</p>
               </div>
             </div>
 
