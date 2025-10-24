@@ -5,7 +5,9 @@ import AdmZip from 'adm-zip';
 
 // 配置参数
 const MODEL_URL = 'https://alphacephei.com/vosk/models/vosk-model-cn-0.15.zip';
-const TMP_DIR = '/tmp/vosk-model';
+const TMP_DIR = process.platform === 'win32'
+  ? 'C:\\Users\\NUC\\AppData\\Local\\Temp\\vosk-model'
+  : '/tmp/vosk-model';
 const MODEL_NAME = 'vosk-model-cn-0.15';
 
 /**
@@ -39,10 +41,14 @@ export async function ensureModel(): Promise<string> {
     // 保存zip文件
     const fileStream = fs.createWriteStream(zipPath);
     await new Promise<void>((resolve, reject) => {
-      res.body?.on('error', reject);
+      if (res.body) {
+        res.body.on('error', reject);
+        res.body.pipe(fileStream);
+      } else {
+        reject(new Error('Response body is null'));
+      }
       fileStream.on('error', reject);
-      fileStream.on('finish', resolve);
-      res.body?.pipe(fileStream);
+      fileStream.on('finish', () => resolve());
     });
 
     console.log('正在解压模型文件...');
