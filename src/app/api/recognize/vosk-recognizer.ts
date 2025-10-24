@@ -9,7 +9,7 @@ if (typeof window === 'undefined') {
     canUseVosk = true;
     console.log('Vosk模块加载成功');
   } catch (error) {
-    console.log('Vosk模块加载失败，将使用模拟模式:', error.message);
+    console.log('Vosk模块加载失败，将使用模拟模式:', (error as Error).message);
     canUseVosk = false;
   }
 } else {

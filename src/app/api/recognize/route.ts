@@ -36,7 +36,7 @@ function attemptImport() {
         console.log('Vosk识别器模块加载失败，使用模拟模式:', error.message);
       });
     } catch (error) {
-      console.log('Vosk识别器初始化失败，使用模拟模式:', error.message);
+      console.log('Vosk识别器初始化失败，使用模拟模式:', (error as Error).message);
     }
   }
 }
