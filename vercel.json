@@ -1,15 +1,8 @@
 {
   "version": 2,
   "public": true,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ],
   "functions": {
     "src/app/api/recognize/route.ts": {
-      "runtime": "nodejs18.x",
       "memory": 1024,
       "maxDuration": 300
     }
