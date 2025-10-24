@@ -1,3 +1,16 @@
+// 动态检查是否可以加载Vosk模块
+let voskModule: any = null;
+let canUseVosk = false;
+
+try {
+  voskModule = require('vosk');
+  canUseVosk = true;
+  console.log('Vosk模块加载成功');
+} catch (error) {
+  console.warn('Vosk模块加载失败，将使用模拟模式:', error);
+  canUseVosk = false;
+}
+
 export class VoskRecognizer {
   private model: any = null;
   private isInitialized = false;
@@ -7,15 +20,18 @@ export class VoskRecognizer {
       return;
     }
 
-    try {
-      // 尝试加载Vosk模块
-      const vosk = await this.loadVoskModule();
+    if (!canUseVosk) {
+      console.log('Vosk不可用，使用模拟模式');
+      this.isInitialized = true;
+      return;
+    }
 
+    try {
       // 这里应该加载中文模型
       // 在实际部署中，需要下载并解压模型到合适的位置
       const modelPath = await this.getModelPath();
 
-      this.model = new vosk.Model(modelPath);
+      this.model = new voskModule.Model(modelPath);
       this.isInitialized = true;
 
       console.log('Vosk识别器初始化成功');
@@ -36,7 +52,7 @@ export class VoskRecognizer {
 
     try {
       // 如果Vosk模块加载成功，使用真实识别
-      if (this.model) {
+      if (this.model && canUseVosk) {
         return await this.realRecognition(audioBuffer);
       } else {
         // 如果Vosk模块加载失败，使用模拟识别
@@ -52,25 +68,12 @@ export class VoskRecognizer {
     return this.isInitialized;
   }
 
-  private async loadVoskModule(): Promise<any> {
-    try {
-      // 在生产环境中，需要确保Vosk已安装
-      // 如果Vosk不可用，这里会抛出错误
-      const vosk = await import('vosk');
-      return vosk;
-    } catch (error) {
-      console.warn('Vosk模块加载失败，将使用模拟模式:', error);
-      throw new Error('Vosk模块不可用');
-    }
-  }
-
   private async getModelPath(): Promise<string> {
     // 在实际部署中，模型应该被下载到 /tmp/vosk-model 目录
     // 这里返回一个默认的模型路径
 
-    // 检查是否有本地模型
-    const fs = await import('fs');
-    const path = await import('path');
+    const fs = require('fs');
+    const path = require('path');
 
     const possiblePaths = [
       '/tmp/vosk-model',
@@ -93,10 +96,12 @@ export class VoskRecognizer {
     confidence: number;
     words: Array<{ word: string; start: number; end: number }>;
   }> {
-    const vosk = await this.loadVoskModule();
+    if (!canUseVosk) {
+      throw new Error('Vosk模块不可用');
+    }
 
     // 创建识别器
-    const recognizer = new vosk.Recognizer({ model: this.model, sampleRate: 16000 });
+    const recognizer = new voskModule.Recognizer({ model: this.model, sampleRate: 16000 });
 
     try {
       // 将ArrayBuffer转换为Int16Array

@@ -17,7 +17,7 @@ interface UseVoiceRecognitionReturn {
 
 // Vosk识别器 - 调用服务器端API
 class VoskRecognizer {
-  private isProcessing: boolean = false;
+  private isRecognizing: boolean = false;
   private apiEndpoint: string;
 
   constructor() {
@@ -28,7 +28,7 @@ class VoskRecognizer {
   }
 
   async recognize(audioBlob: Blob): Promise<RecognitionResult> {
-    this.isProcessing = true;
+    this.isRecognizing = true;
 
     try {
       // 将音频Blob转换为16kHz单声道PCM格式
@@ -49,14 +49,14 @@ class VoskRecognizer {
 
       const result = await response.json();
 
-      this.isProcessing = false;
+      this.isRecognizing = false;
       return {
         text: result.text || '',
         confidence: result.confidence || 0.9,
         words: result.words || []
       };
     } catch (error) {
-      this.isProcessing = false;
+      this.isRecognizing = false;
 
       // 如果Vosk API调用失败，使用浏览器内置的SpeechRecognition作为备选方案
       console.warn('Vosk识别失败，尝试使用浏览器内置API:', error);
@@ -179,11 +179,11 @@ class VoskRecognizer {
   }
 
   cancel() {
-    this.isProcessing = false;
+    this.isRecognizing = false;
   }
 
   isProcessing(): boolean {
-    return this.isProcessing;
+    return this.isRecognizing;
   }
 
   destroy() {
