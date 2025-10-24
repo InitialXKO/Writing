@@ -5,7 +5,7 @@ import { writingTools } from '@/data/tools';
 import { useAppStore } from '@/lib/store';
 import AdvancedToolsHub from '@/components/AdvancedToolsHub';
 import PasswordInput from '@/components/PasswordInput';
-import { ArrowLeft, CheckCircle, Sparkles, Lightbulb } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Sparkles, Lightbulb, AlertTriangle } from 'lucide-react';
 
 export default function AdvancedToolsPage() {
   const { progress, setProgress } = useAppStore();
@@ -52,16 +52,16 @@ export default function AdvancedToolsPage() {
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold mb-2">高级思维工具集</h1>
-                  <p className="text-morandi-purple-100 text-lg">作文模式网络 - 从模板到动态模式组合</p>
+                  <p className="text-morandi-purple-100 text-lg">作文思维方法 - 从套路到灵活运用</p>
                 </div>
               </div>
 
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                <div className="flex items-center gap-2 text-morandi-purple-100">
-                  <Lightbulb className="w-5 h-5" />
-                  <span className="font-medium">核心理念</span>
+              <div className="bg-gradient-to-br from-morandi-orange-50 to-morandi-red-50 border border-morandi-orange-200 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-morandi-orange-800">
+                  <AlertTriangle className="w-5 h-5 text-morandi-orange-700" />
+                  <span className="font-bold">超纲警告</span>
                 </div>
-                <p className="text-white font-bold text-lg mt-1">从模板到动态模式组合</p>
+                <p className="text-morandi-orange-700">以下内容属于超纲知识，仅供学有余力的同学参考。请确保已熟练掌握基础写作工具后再学习这些高级技巧。</p>
               </div>
             </div>
           </div>
@@ -75,10 +75,10 @@ export default function AdvancedToolsPage() {
                 <Lightbulb className="w-5 h-5 text-morandi-purple-600" />
               </div>
               <div>
-                <p className="text-morandi-purple-800 font-medium">作文模式网络</p>
+                <p className="text-morandi-purple-800 font-medium">作文思维方法</p>
                 <p className="text-morandi-purple-700 text-sm">
-                  将写作从一套僵化的"范文模板"，提升为一个由可复用思维模式和表达模式动态组合的创造性系统。
-                  每个模式都是一个工具，让你像架构师一样灵活、有深度地构建任何文章。
+                  告别死记硬背的范文套路，用灵活的思维方法和表达技巧来构建你的独特文章。
+                  每一种方法都是一个实用工具，帮助你更好地组织思路，清晰地表达想法。
                 </p>
               </div>
             </div>
