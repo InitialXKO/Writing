@@ -606,8 +606,12 @@ function WriteContent() {
         is_eval_mode: true,
       });
 
-      const markdownText = typeof result?.data?.[1] === 'string' ? result.data[1] : '';
-      const plainText = typeof result?.data?.[2] === 'string' ? result.data[2] : '';
+      const data = Array.isArray((result as { data?: unknown }).data)
+        ? ((result as { data: unknown[] }).data)
+        : [];
+
+      const markdownText = typeof data[1] === 'string' ? data[1] : '';
+      const plainText = typeof data[2] === 'string' ? data[2] : '';
       const recognizedText = (plainText || markdownText || '').trim();
 
       if (recognizedText) {
