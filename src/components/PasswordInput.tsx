@@ -49,7 +49,7 @@ export default function PasswordInput({ toolId, correctPassword, onUnlock }: Pas
         不要恐慌
       </h2>
       <p className="text-morandi-purple-700 mb-4">
-        此工具属于超纲内容，需要输入密码才能解锁
+        此工具需要输入密码才能解锁
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
