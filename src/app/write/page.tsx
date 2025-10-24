@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Client } from '@gradio/client';
 import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
@@ -571,6 +572,8 @@ function WriteContent() {
   const [imageUrl, setImageUrl] = useState<string>('');
   const [audioUrl, setAudioUrl] = useState<string>('');
   const [transcribedText, setTranscribedText] = useState<string>('');
+  const [recognitionProgress, setRecognitionProgress] = useState<number>(0);
+  const [isRecognizing, setIsRecognizing] = useState<boolean>(false);
 
   // 计算已解锁练习的工具（自由写作始终可选）
   const availablePracticeTools = writingTools.filter(tool => {
@@ -582,49 +585,47 @@ function WriteContent() {
   // 处理图片上传或拍摄
   const handleImageCapture = async (base64Image: string) => {
     try {
-      showSuccess('正在识别手写文字...');
       setImageUrl(base64Image);
+      setAudioUrl('');
       setContentType('image');
-      
-      // 调用 Vision API 识别手写文字
-      const response = await fetch('https://text.pollinations.ai/openai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'openai',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: '请识别这张手写作文图片中的所有文字内容，并按照原文格式输出。只输出识别到的文字，不要添加任何解释或评论。' },
-              {
-                type: 'image_url',
-                image_url: { url: base64Image }
-              }
-            ]
-          }],
-          max_tokens: 2000
-        }),
-      });
+      setTranscribedText('');
+      setContent('');
 
-      if (!response.ok) {
-        throw new Error(`识别失败: ${response.status}`);
+      if (typeof showWarning === 'function') {
+        showWarning('正在识别手写作文，请稍候...');
       }
 
-      const data = await response.json();
-      const recognizedText = data.choices?.[0]?.message?.content || '';
-      
+      const response = await fetch(base64Image);
+      const imageBlob = await response.blob();
+
+      const client = await Client.connect('axiilay/DeepSeek-OCR-Demo');
+      const result = await client.predict('/process_image', {
+        image: imageBlob,
+        model_size: 'Tiny',
+        task_type: 'Free OCR',
+        is_eval_mode: true,
+      });
+
+      const markdownText = typeof result?.data?.[1] === 'string' ? result.data[1] : '';
+      const plainText = typeof result?.data?.[2] === 'string' ? result.data[2] : '';
+      const recognizedText = (plainText || markdownText || '').trim();
+
       if (recognizedText) {
         setTranscribedText(recognizedText);
         setContent(recognizedText);
-        showSuccess('手写文字识别成功！');
+        if (typeof showSuccess === 'function') {
+          showSuccess('手写文字识别成功！');
+        }
       } else {
-        showError('未能识别到文字内容');
+        if (typeof showWarning === 'function') {
+          showWarning('识别完成，但未获取到文本，请检查图片清晰度');
+        }
       }
     } catch (error) {
       console.error('图片识别失败:', error);
-      showError('图片识别失败，请重试');
+      if (typeof showError === 'function') {
+        showError('图片识别失败，请重试');
+      }
       handleClearMedia();
     }
   };

@@ -27,6 +27,7 @@
     "zustand": "^4.4.0"
   },
   "devDependencies": {
+    "@gradio/client": "^2.0.0-dev.1",
     "eslint": "^8.56.0",
     "eslint-config-next": "^14.2.0"
   }

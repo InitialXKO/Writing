@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, Mic, X, Loader2 } from 'lucide-react';
 
 interface MediaInputProps {
@@ -23,11 +23,73 @@ export default function MediaInput({
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const completionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const wasProcessingRef = useRef(false);
+
+  useEffect(() => {
+    if (isProcessing) {
+      wasProcessingRef.current = true;
+      if (completionTimerRef.current) {
+        clearTimeout(completionTimerRef.current);
+      }
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+      }
+      setProgress(0);
+      progressTimerRef.current = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 92) {
+            return prev;
+          }
+          const next = prev + Math.random() * 12 + 6;
+          return next >= 92 ? 92 : next;
+        });
+      }, 450);
+    } else {
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
+
+      if (wasProcessingRef.current) {
+        setProgress(100);
+        completionTimerRef.current = setTimeout(() => {
+          setProgress(0);
+          wasProcessingRef.current = false;
+        }, 500);
+      } else {
+        setProgress(0);
+      }
+    }
+
+    return () => {
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
+      if (completionTimerRef.current) {
+        clearTimeout(completionTimerRef.current);
+        completionTimerRef.current = null;
+      }
+    };
+  }, [isProcessing]);
+
+  const readFileAsDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('读取文件失败'));
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -38,23 +100,20 @@ export default function MediaInput({
       return;
     }
 
+    setProgressMessage('手写作文识别中，请稍候...');
     setIsProcessing(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64Data = event.target?.result as string;
-        await onImageCapture(base64Data);
-        setIsProcessing(false);
-      };
-      reader.onerror = () => {
-        alert('读取文件失败');
-        setIsProcessing(false);
-      };
-      reader.readAsDataURL(file);
+      const base64Data = await readFileAsDataURL(file);
+      await onImageCapture(base64Data);
     } catch (error) {
       console.error('上传图片失败:', error);
       alert('上传图片失败');
+    } finally {
       setIsProcessing(false);
+      setProgressMessage('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -62,23 +121,20 @@ export default function MediaInput({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setProgressMessage('手写作文识别中，请稍候...');
     setIsProcessing(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64Data = event.target?.result as string;
-        await onImageCapture(base64Data);
-        setIsProcessing(false);
-      };
-      reader.onerror = () => {
-        alert('读取照片失败');
-        setIsProcessing(false);
-      };
-      reader.readAsDataURL(file);
+      const base64Data = await readFileAsDataURL(file);
+      await onImageCapture(base64Data);
     } catch (error) {
       console.error('拍照失败:', error);
       alert('拍照失败');
+    } finally {
       setIsProcessing(false);
+      setProgressMessage('');
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = '';
+      }
     }
   };
 
@@ -142,6 +198,29 @@ export default function MediaInput({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const progressPercentage = Math.min(Math.round(progress), 100);
+
+  if (isProcessing || progress > 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 p-10 border-2 border-morandi-gray-300 rounded-xl bg-white text-center">
+        <Loader2 className="w-12 h-12 text-morandi-blue-500 animate-spin" />
+        <div>
+          <p className="text-morandi-gray-700 font-medium">
+            {progressMessage || '正在处理中，请稍候...'}
+          </p>
+          <p className="text-xs text-morandi-gray-500 mt-1">如果识别时间较长，请稍候片刻</p>
+        </div>
+        <div className="w-full max-w-xs h-2 bg-morandi-gray-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-morandi-blue-500 transition-all duration-300"
+            style={{ width: `${progressPercentage}%` }}
+          />
+        </div>
+        <p className="text-xs text-morandi-gray-500">{progressPercentage}%</p>
+      </div>
+    );
+  }
+
   if (currentImage) {
     return (
       <div className="relative border-2 border-morandi-gray-300 rounded-xl p-4 bg-white">
@@ -184,17 +263,6 @@ export default function MediaInput({
           controls
           className="w-full"
         />
-      </div>
-    );
-  }
-
-  if (isProcessing) {
-    return (
-      <div className="flex items-center justify-center p-12 border-2 border-morandi-gray-300 rounded-xl bg-white">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-morandi-blue-500 animate-spin mx-auto mb-4" />
-          <p className="text-morandi-gray-600">正在处理中...</p>
-        </div>
       </div>
     );
   }
