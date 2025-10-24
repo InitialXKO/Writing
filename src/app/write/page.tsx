@@ -1,6 +1,11 @@
 'use client';
 
+<<<<<<< HEAD
 import { useState, useEffect, useRef } from 'react';
+=======
+import { useState, useEffect } from 'react';
+import { Client } from '@gradio/client';
+>>>>>>> feat/write-page-handwritten-image-voice-stt-replace-manuscript
 import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
@@ -11,6 +16,7 @@ import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
 import CompositionPaper from '@/components/CompositionPaper';
+import MediaInput, { AudioCaptureResult } from '@/components/MediaInput';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import VoiceRecognitionPanel from '@/components/VoiceRecognitionPanel';
@@ -565,7 +571,14 @@ function WriteContent() {
   const [editingEssayId, setEditingEssayId] = useState<string | null>(null);
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
   const [actionItems, setActionItems] = useState<any[]>([]);
-  const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
+
+  // 媒体输入相关状态
+  const [contentType, setContentType] = useState<'text' | 'image' | 'audio'>('text');
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [audioUrl, setAudioUrl] = useState<string>('');
+  const [transcribedText, setTranscribedText] = useState<string>('');
+  const [recognitionProgress, setRecognitionProgress] = useState<number>(0);
+  const [isRecognizing, setIsRecognizing] = useState<boolean>(false);
 
   // 计算已解锁练习的工具（自由写作始终可选）
   const availablePracticeTools = writingTools.filter(tool => {
@@ -573,6 +586,107 @@ function WriteContent() {
     const level = progress.levels.find(l => l.toolId === tool.id);
     return !!level?.testPassed;
   });
+
+  // 处理图片上传或拍摄
+  const handleImageCapture = async (base64Image: string) => {
+    try {
+      setImageUrl(base64Image);
+      setAudioUrl('');
+      setContentType('image');
+      setTranscribedText('');
+      setContent('');
+
+      if (typeof showWarning === 'function') {
+        showWarning('正在识别手写作文，请稍候...');
+      }
+
+      const response = await fetch(base64Image);
+      const imageBlob = await response.blob();
+
+      const client = await Client.connect('axiilay/DeepSeek-OCR-Demo');
+      const result = await client.predict('/process_image', {
+        image: imageBlob,
+        model_size: 'Tiny',
+        task_type: 'Free OCR',
+        is_eval_mode: true,
+      });
+
+      const data = Array.isArray((result as { data?: unknown }).data)
+        ? ((result as { data: unknown[] }).data)
+        : [];
+
+      const markdownText = typeof data[1] === 'string' ? data[1] : '';
+      const plainText = typeof data[2] === 'string' ? data[2] : '';
+      const recognizedText = (plainText || markdownText || '').trim();
+
+      if (recognizedText) {
+        setTranscribedText(recognizedText);
+        setContent(recognizedText);
+        if (typeof showSuccess === 'function') {
+          showSuccess('手写文字识别成功！');
+        }
+      } else {
+        if (typeof showWarning === 'function') {
+          showWarning('识别完成，但未获取到文本，请检查图片清晰度');
+        }
+      }
+    } catch (error) {
+      console.error('图片识别失败:', error);
+      if (typeof showError === 'function') {
+        showError('图片识别失败，请重试');
+      }
+      handleClearMedia();
+    }
+  };
+
+  // 处理音频录制
+  const handleAudioCapture = async ({ audioData, transcript }: AudioCaptureResult) => {
+    try {
+      setAudioUrl(audioData);
+      setContentType('audio');
+
+      const normalizedTranscript = transcript?.trim();
+      if (normalizedTranscript) {
+        setTranscribedText(normalizedTranscript);
+        setContent(normalizedTranscript);
+        if (typeof showSuccess === 'function') {
+          showSuccess('语音识别成功！');
+        }
+      } else {
+        setTranscribedText('');
+        setContent('');
+        if (typeof showWarning === 'function') {
+          showWarning('识别未捕捉到语音内容，请重试或注意语速和清晰度');
+        }
+      }
+    } catch (error) {
+      console.error('语音识别处理失败:', error);
+      if (typeof showError === 'function') {
+        showError('语音识别处理失败，请重试');
+      }
+      handleClearMedia();
+    }
+  };
+
+  // 清除媒体并恢复稿纸
+  const handleClearMedia = () => {
+    setContentType('text');
+    setImageUrl('');
+    setAudioUrl('');
+    setTranscribedText('');
+  };
+
+  const handleContentUpdate = (value: string) => {
+    setContent(value);
+    if (contentType !== 'text') {
+      setTranscribedText(value);
+    }
+  };
+
+  const handleReCapture = () => {
+    handleClearMedia();
+    setIsFeedbackModalOpen(false);
+  };
 
   const runOverallReview = async (essayId: string) => {
     const { essays: currentEssays } = useAppStore.getState();
@@ -657,8 +771,13 @@ ${simplifiedHistory}
       const essay = essays.find(e => e.id === essayId);
       if (essay) {
         setTitle(essay.title);
-        setContent(essay.content);
         setSelectedTool(essay.toolUsed);
+        const essayContent = essay.transcribedText || essay.content || '';
+        setContent(essayContent);
+        setTranscribedText(essay.transcribedText || '');
+        setContentType(essay.contentType || 'text');
+        setImageUrl(essay.imageUrl || '');
+        setAudioUrl(essay.audioUrl || '');
       }
     }
 
@@ -669,7 +788,12 @@ ${simplifiedHistory}
         if (essay && essay.versions) {
           const version = essay.versions.find(v => v.id === versionId);
           if (version) {
-            setContent(version.content);
+            const versionContent = version.transcribedText || version.content || '';
+            setContent(versionContent);
+            setTranscribedText(version.transcribedText || '');
+            setContentType(version.contentType || essay?.contentType || 'text');
+            setImageUrl(version.imageUrl || '');
+            setAudioUrl(version.audioUrl || '');
           }
         }
       }
@@ -726,7 +850,12 @@ ${simplifiedHistory}
       // 如果是编辑已存在的作文，添加新版本
       if (editingVersionId) {
         // 如果是编辑特定版本，保存为新版本，基于该版本创建分支
-        addEssayVersion(editingEssayId, content, feedback, actionItems, editingVersionId);
+        addEssayVersion(editingEssayId, content, feedback, actionItems, editingVersionId, {
+          contentType,
+          imageUrl,
+          audioUrl,
+          transcribedText
+        });
         showSuccess('新版本已保存到作文中');
       } else {
         // 如果是编辑当前版本，更新作文
@@ -734,6 +863,10 @@ ${simplifiedHistory}
           title,
           content,
           toolUsed: selectedTool,
+          contentType,
+          imageUrl,
+          audioUrl,
+          transcribedText
         });
         showSuccess('作文已更新');
       }
@@ -743,6 +876,10 @@ ${simplifiedHistory}
         title,
         content,
         toolUsed: selectedTool,
+        contentType,
+        imageUrl,
+        audioUrl,
+        transcribedText
       });
       showSuccess('作文已保存到我的作文中');
     }
@@ -770,9 +907,34 @@ ${simplifiedHistory}
       return;
     }
 
-    if (!title.trim() || !content.trim()) {
-      showWarning('请填写标题和内容');
+    if (!title.trim()) {
+      showWarning('请填写作文标题');
       return;
+    }
+
+    if (contentType === 'text') {
+      if (!content.trim()) {
+        showWarning('请填写作文内容');
+        return;
+      }
+    } else if (contentType === 'image') {
+      if (!imageUrl) {
+        showWarning('请上传或拍摄手写作文图片');
+        return;
+      }
+      if (!content.trim()) {
+        showWarning('手写作文正在识别中，请稍候或手动补充识别结果');
+        return;
+      }
+    } else if (contentType === 'audio') {
+      if (!audioUrl) {
+        showWarning('请录制语音作文');
+        return;
+      }
+      if (!content.trim()) {
+        showWarning('语音转录尚未完成，请稍候或手动补充文本');
+        return;
+      }
     }
 
     // 检查行动项完成情况
@@ -1200,27 +1362,57 @@ ${simplifiedHistory}
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-morandi-gray-700 flex items-center gap-2">
-                  <div className="p-1 bg-morandi-green-100 rounded-md">
-                    <Edit3 className="w-4 h-4 text-morandi-green-600" />
+              <label className="block text-sm font-medium text-morandi-gray-700 mb-2 flex items-center gap-2">
+                <div className="p-1 bg-morandi-green-100 rounded-md">
+                  <Edit3 className="w-4 h-4 text-morandi-green-600" />
+                </div>
+                作文内容
+              </label>
+
+              {contentType === 'text' ? (
+                <>
+                  <CompositionPaper
+                    value={content}
+                    onChange={handleContentUpdate}
+                    placeholder="开始你的创作吧...运用你学到的写作技巧"
+                    className="w-full"
+                  />
+
+                  <div className="mt-6 p-4 bg-morandi-blue-50 border border-morandi-blue-100 rounded-xl">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-morandi-blue-800">或者试试手写/语音输入</h3>
+                      <span className="text-xs text-morandi-blue-600">上传后将替换稿纸</span>
+                    </div>
+                    <MediaInput
+                      onImageCapture={handleImageCapture}
+                      onAudioCapture={handleAudioCapture}
+                      currentImage={imageUrl}
+                      currentAudio={audioUrl}
+                      onClear={handleClearMedia}
+                    />
                   </div>
-                  作文内容
-                </label>
-                <button
-                  onClick={() => setIsVoicePanelOpen(true)}
-                  className="flex items-center gap-1 text-sm bg-morandi-purple-100 hover:bg-morandi-purple-200 text-morandi-purple-700 font-medium px-3 py-1 rounded-lg transition-colors"
-                >
-                  <Mic className="w-4 h-4" />
-                  语音输入
-                </button>
-              </div>
-              <CompositionPaper
-                value={content}
-                onChange={setContent}
-                placeholder="开始你的创作吧...运用你学到的写作技巧"
-                className="w-full"
-              />
+                </>
+              ) : (
+                <>
+                  <MediaInput
+                    onImageCapture={handleImageCapture}
+                    onAudioCapture={handleAudioCapture}
+                    currentImage={contentType === 'image' ? imageUrl : ''}
+                    currentAudio={contentType === 'audio' ? audioUrl : ''}
+                    onClear={handleClearMedia}
+                  />
+
+                  <div className="mt-6">
+                    <label className="block text-sm font-medium text-morandi-gray-700 mb-2">识别结果（可在此修改文本）</label>
+                    <textarea
+                      value={content}
+                      onChange={(e) => handleContentUpdate(e.target.value)}
+                      className="w-full min-h-[200px] p-4 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white"
+                      placeholder="系统会自动识别你的手写或语音，如果有误可以在这里修改~"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1325,7 +1517,11 @@ ${simplifiedHistory}
         actionItems={actionItems}
         onActionItemUpdate={handleActionItemUpdate}
         onReReview={handleReReview}
-        onContentUpdate={setContent}
+        onContentUpdate={handleContentUpdate}
+        contentType={contentType}
+        imageUrl={imageUrl}
+        audioUrl={audioUrl}
+        onReCapture={handleReCapture}
       />
 
       {/* 确认对话框 */}
@@ -1344,32 +1540,6 @@ ${simplifiedHistory}
         }}
       />
 
-      {/* 语音识别面板 */}
-      {isVoicePanelOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-morandi-gray-800">语音转写</h3>
-                <button
-                  onClick={() => setIsVoicePanelOpen(false)}
-                  className="text-morandi-gray-500 hover:text-morandi-gray-700"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <VoiceRecognitionPanel
-                onTextInsert={(text) => {
-                  setContent(prev => prev + (prev ? '\n' : '') + text);
-                  setIsVoicePanelOpen(false);
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

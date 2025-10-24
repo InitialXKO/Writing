@@ -23,7 +23,14 @@ interface AppState {
   addEssay: (essay: Omit<Essay, 'id' | 'createdAt'>) => string;
   updateEssay: (id: string, updates: Partial<Essay>) => void;
   deleteEssay: (id: string) => void;
-  addEssayVersion: (essayId: string, content: string, feedback?: string, actionItems?: ActionItem[], parentId?: string) => void; // 添加作文版本
+  addEssayVersion: (
+    essayId: string,
+    content: string,
+    feedback?: string,
+    actionItems?: ActionItem[],
+    parentId?: string,
+    metadata?: Partial<Pick<EssayVersion, 'contentType' | 'imageUrl' | 'audioUrl' | 'transcribedText'>>
+  ) => void; // 添加作文版本
   updateEssayVersion: (essayId: string, versionId: string, updates: Partial<EssayVersion>) => void; // 更新作文版本
   // 新增行动项更新方法
   updateActionItem: (essayId: string, versionId: string | null, actionItemId: string, completed: boolean) => void;
@@ -339,21 +346,47 @@ export const useAppStore = create<AppState>()(
       },
 
       // 添加新版本到作文
-      addEssayVersion: (essayId, content, feedback, actionItems, parentId) => {
+      addEssayVersion: (essayId, content, feedback, actionItems, parentId, metadata) => {
         set(state => ({
           essays: state.essays.map(essay => {
             if (essay.id === essayId) {
+              const contentType = metadata?.contentType ?? 'text';
               const newVersion: EssayVersion = {
                 id: genId(),
                 content,
                 feedback,
                 createdAt: new Date(),
                 actionItems: actionItems || [],
-                parentId: parentId || undefined
+                parentId: parentId || undefined,
+                ...(metadata || {}),
+                contentType
               };
+
+              const essayUpdates: Partial<Essay> = {
+                currentVersionId: newVersion.id,
+                contentType,
+              };
+
+              if (metadata?.transcribedText !== undefined) {
+                essayUpdates.transcribedText = metadata.transcribedText;
+              } else if (contentType === 'text') {
+                essayUpdates.transcribedText = undefined;
+              }
+
+              if (contentType === 'image') {
+                essayUpdates.imageUrl = metadata?.imageUrl;
+                essayUpdates.audioUrl = undefined;
+              } else if (contentType === 'audio') {
+                essayUpdates.audioUrl = metadata?.audioUrl;
+                essayUpdates.imageUrl = undefined;
+              } else {
+                essayUpdates.imageUrl = undefined;
+                essayUpdates.audioUrl = undefined;
+              }
+
               return {
                 ...essay,
-                currentVersionId: newVersion.id, // 更新当前版本ID为新版本的ID
+                ...essayUpdates,
                 versions: [...(essay.versions || []), newVersion]
               };
             }
