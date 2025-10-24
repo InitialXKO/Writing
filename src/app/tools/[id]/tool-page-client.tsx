@@ -3,19 +3,70 @@
 import { useState } from 'react';
 import { writingTools } from '@/data/tools';
 import { useAppStore, canUnlockTool } from '@/lib/store'; // 导入解锁条件检查函数
-import { ArrowLeft, CheckCircle, Play, Edit, Award, Sparkles, Lightbulb, ShieldCheck, Lock, BookOpen } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Play, Edit, Award, Sparkles, Lightbulb, ShieldCheck, Lock, BookOpen, Brain, Unlock, Sparkles as SparklesIcon } from 'lucide-react';
 import Link from 'next/link';
 import ComprehensionTest from '@/components/ComprehensionTest';
+import WritingToolGuide from '@/components/WritingToolGuide';
+import SubToolsList from '@/components/SubToolsList';
+import PasswordInput from '@/components/PasswordInput';
+import { topLevelToolIds as topLevelTools, subToolToParentMap, sharedSubTools } from '@/lib/tool-config';
+
+// 导航逻辑辅助函数
+const getNavigationInfo = (toolId: string) => {
+  // 检查是否为顶层工具
+  if (topLevelTools.includes(toolId)) {
+    return {
+      type: 'top-level' as const,
+      href: '/tools/advanced-tools',
+      label: '返回高级工具页面'
+    };
+  }
+
+  // 检查是否为复用的子工具
+  if (sharedSubTools.includes(toolId)) {
+    return {
+      type: 'shared-sub' as const,
+      href: '/tools/advanced-tools',
+      label: '返回高级工具页面'
+    };
+  }
+
+  // 检查是否为子工具
+  if (subToolToParentMap[toolId]) {
+    return {
+      type: 'sub-tool' as const,
+      href: `/tools/${subToolToParentMap[toolId]}`,
+      label: '返回顶层工具'
+    };
+  }
+
+  // 默认返回首页
+  return {
+    type: 'default' as const,
+    href: '/',
+    label: '返回首页'
+  };
+};
 
 export default function ToolPageClient({ params }: { params: { id: string } }) {
   const toolId = params.id;
   const tool = writingTools.find(t => t.id === toolId);
   const { progress, passTest } = useAppStore();
   const [testPassed, setTestPassed] = useState(false);
+  const [isPasswordUnlocked, setIsPasswordUnlocked] = useState(false);
 
   // 检查测试是否已经通过
   const level = progress.levels.find(l => l.toolId === toolId);
   const isTestPassed = level?.testPassed || testPassed;
+
+  // 检查工具是否已解锁
+  const isToolUnlocked = toolId === 'free-writing' || progress.unlockedTools.includes(toolId) || isPasswordUnlocked;
+
+  // 检查是否为高级工具集页面
+  const isAdvancedToolsCollection = toolId === 'advanced-tools';
+
+  // 获取导航信息
+  const navigationInfo = getNavigationInfo(toolId);
 
   if (!tool) {
     return (
@@ -51,14 +102,15 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
       {/* 头部 */}
       <div className="bg-gradient-to-r from-morandi-blue-600 to-morandi-green-700 text-white">
         <div className="max-w-6xl mx-auto px-6 py-8">
+          {/* 根据工具类型显示不同的返回按钮 */}
           <Link
-            href="/"
+            href={navigationInfo.href}
             className="flex items-center gap-2 text-morandi-blue-100 hover:text-white transition-colors mb-6 w-fit"
           >
             <div className="p-2 bg-morandi-blue-500/20 rounded-lg">
               <ArrowLeft className="w-5 h-5" />
             </div>
-            返回首页
+            {navigationInfo.label}
           </Link>
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -100,79 +152,92 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
 
         {/* 解锁条件 */}
         {tool.id !== 'free-writing' && tool.unlockConditions && (
-          <section className="bg-gradient-to-br from-morandi-purple-50 to-morandi-purple-100 border border-morandi-purple-200 rounded-2xl p-6">
-            <h2 className="text-2xl font-bold text-morandi-purple-800 mb-4 flex items-center gap-2">
-              <div className="p-2 bg-morandi-purple-500/20 rounded-lg">
-                <Lock className="w-5 h-5 text-morandi-purple-700" />
+          <>
+            <section className="bg-gradient-to-br from-morandi-purple-50 to-morandi-purple-100 border border-morandi-purple-200 rounded-2xl p-6">
+              <h2 className="text-2xl font-bold text-morandi-purple-800 mb-4 flex items-center gap-2">
+                <div className="p-2 bg-morandi-purple-500/20 rounded-lg">
+                  <Lock className="w-5 h-5 text-morandi-purple-700" />
+                </div>
+                解锁条件
+              </h2>
+              <div className="space-y-4">
+                {tool.unlockConditions.prerequisiteTools && tool.unlockConditions.prerequisiteTools.length > 0 && (
+                  <div className="flex items-start gap-3 p-4 bg-white/50 rounded-xl">
+                    <div className="mt-1">
+                      <BookOpen className="w-5 h-5 text-morandi-purple-600" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-morandi-purple-800">前置工具要求</div>
+                      <div className="text-morandi-purple-700 text-sm">
+                        需要先掌握以下工具：
+                        {tool.unlockConditions.prerequisiteTools.map((prereqId, index) => {
+                          const prereqTool = writingTools.find(t => t.id === prereqId);
+                          const prereqLevel = progress.levels.find(l => l.toolId === prereqId);
+                          const isCompleted = prereqLevel?.testPassed;
+                          return (
+                            <span key={prereqId} className={`ml-2 ${isCompleted ? 'text-morandi-green-600' : 'text-morandi-red-500'}`}>
+                              {prereqTool?.name}{index < tool.unlockConditions!.prerequisiteTools!.length - 1 ? '、' : ''}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {tool.unlockConditions.minMasteryLevel && (
+                  <div className="flex items-start gap-3 p-4 bg-white/50 rounded-xl">
+                    <div className="mt-1">
+                      <ShieldCheck className="w-5 h-5 text-morandi-purple-600" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-morandi-purple-800">掌握程度要求</div>
+                      <div className="text-morandi-purple-700 text-sm">
+                        前置工具平均掌握程度需达到 {tool.unlockConditions.minMasteryLevel}%
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {tool.unlockConditions.minPracticeCount && (
+                  <div className="flex items-start gap-3 p-4 bg-white/50 rounded-xl">
+                    <div className="mt-1">
+                      <Edit className="w-5 h-5 text-morandi-purple-600" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-morandi-purple-800">练习次数要求</div>
+                      <div className="text-morandi-purple-700 text-sm">
+                        前置工具总练习次数需达到 {tool.unlockConditions.minPracticeCount} 次
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {tool.unlockConditions.minWritingStreak && (
+                  <div className="flex items-start gap-3 p-4 bg-white/50 rounded-xl">
+                    <div className="mt-1">
+                      <Award className="w-5 h-5 text-morandi-purple-600" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-morandi-purple-800">连续写作天数要求</div>
+                      <div className="text-morandi-purple-700 text-sm">
+                        连续写作天数需达到 {tool.unlockConditions.minWritingStreak} 天
+                        (当前: {progress.habitTracker?.writingStreak || 0} 天)
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              解锁条件
-            </h2>
-            <div className="space-y-4">
-              {tool.unlockConditions.prerequisiteTools && tool.unlockConditions.prerequisiteTools.length > 0 && (
-                <div className="flex items-start gap-3 p-4 bg-white/50 rounded-xl">
-                  <div className="mt-1">
-                    <BookOpen className="w-5 h-5 text-morandi-purple-600" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-morandi-purple-800">前置工具要求</div>
-                    <div className="text-morandi-purple-700 text-sm">
-                      需要先掌握以下工具：
-                      {tool.unlockConditions.prerequisiteTools.map((prereqId, index) => {
-                        const prereqTool = writingTools.find(t => t.id === prereqId);
-                        const prereqLevel = progress.levels.find(l => l.toolId === prereqId);
-                        const isCompleted = prereqLevel?.testPassed;
-                        return (
-                          <span key={prereqId} className={`ml-2 ${isCompleted ? 'text-morandi-green-600' : 'text-morandi-red-500'}`}>
-                            {prereqTool?.name}{index < tool.unlockConditions!.prerequisiteTools!.length - 1 ? '、' : ''}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {tool.unlockConditions.minMasteryLevel && (
-                <div className="flex items-start gap-3 p-4 bg-white/50 rounded-xl">
-                  <div className="mt-1">
-                    <ShieldCheck className="w-5 h-5 text-morandi-purple-600" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-morandi-purple-800">掌握程度要求</div>
-                    <div className="text-morandi-purple-700 text-sm">
-                      前置工具平均掌握程度需达到 {tool.unlockConditions.minMasteryLevel}%
-                    </div>
-                  </div>
-                </div>
-              )}
-              {tool.unlockConditions.minPracticeCount && (
-                <div className="flex items-start gap-3 p-4 bg-white/50 rounded-xl">
-                  <div className="mt-1">
-                    <Edit className="w-5 h-5 text-morandi-purple-600" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-morandi-purple-800">练习次数要求</div>
-                    <div className="text-morandi-purple-700 text-sm">
-                      前置工具总练习次数需达到 {tool.unlockConditions.minPracticeCount} 次
-                    </div>
-                  </div>
-                </div>
-              )}
-              {tool.unlockConditions.minWritingStreak && (
-                <div className="flex items-start gap-3 p-4 bg-white/50 rounded-xl">
-                  <div className="mt-1">
-                    <Award className="w-5 h-5 text-morandi-purple-600" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-morandi-purple-800">连续写作天数要求</div>
-                    <div className="text-morandi-purple-700 text-sm">
-                      连续写作天数需达到 {tool.unlockConditions.minWritingStreak} 天
-                      (当前: {progress.habitTracker?.writingStreak || 0} 天)
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
+            </section>
+
+            {/* 密码解锁 */}
+            {tool.unlockConditions.password && !isToolUnlocked && (
+              <section>
+                <PasswordInput
+                  toolId={toolId}
+                  correctPassword={tool.unlockConditions.password}
+                  onUnlock={() => setIsPasswordUnlocked(true)}
+                />
+              </section>
+            )}
+          </>
         )}
 
         {/* 口诀和提示 */}
@@ -245,6 +310,11 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
           </section>
         )}
 
+        {/* 写作工具指南（仅对特定工具显示） */}
+        <section>
+          <WritingToolGuide toolId={toolId} />
+        </section>
+
         {/* 正反案例 */}
         <section className="bg-white rounded-2xl shadow-card p-6 border border-morandi-gray-200">
           <h2 className="text-2xl font-bold text-morandi-gray-800 mb-6 flex items-center gap-2">
@@ -280,6 +350,18 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
             ))}
           </div>
         </section>
+
+        {/* 子工具列表 */}
+        {tool.subTools && tool.subTools.length > 0 && (
+          <section className="space-y-6">
+            <SubToolsList
+              tools={writingTools.filter(t => tool.subTools?.includes(t.id))}
+              onToolSelect={(selectedToolId) => window.location.href = `/tools/${selectedToolId}`}
+              title={`${tool.name}子工具`}
+              description={`掌握这些${tool.name}的子工具，提升您的写作技能`}
+            />
+          </section>
+        )}
 
         {/* 练习题目 */}
         <section className="bg-gradient-to-br from-morandi-green-50 to-morandi-green-100 border border-morandi-green-200 rounded-2xl p-6">
@@ -348,11 +430,11 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
               </button>
             )}
             <Link
-              href="/"
+              href={navigationInfo.href}
               className="bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 text-white font-bold py-4 px-8 rounded-2xl text-lg hover:from-morandi-green-600 hover:to-morandi-green-700 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl"
             >
               <CheckCircle className="w-6 h-6" />
-              返回首页继续学习
+              {navigationInfo.label}
             </Link>
           </div>
           <p className="text-morandi-gray-600 mt-3">完成练习后记得保存并获取AI反馈哦！</p>

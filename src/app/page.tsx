@@ -282,9 +282,13 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* 工具卡片网格 */}
+      {/* 基本工具卡片网格 */}
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {writingTools.map((tool, index) => {
+        {writingTools.filter(tool => {
+          // 只显示基本工具（tool-0到tool-6）和自由写作工具
+          const toolNumber = tool.id.startsWith('tool-') ? parseInt(tool.id.split('-')[1]) : -1;
+          return tool.id === 'free-writing' || (toolNumber >= 0 && toolNumber <= 6);
+        }).map((tool, index) => {
           const level = progress.levels.find(l => l.toolId === tool.id);
           // 自由写作工具始终是已解锁的
           const isUnlocked = tool.id === 'free-writing' || progress.unlockedTools.includes(tool.id);
@@ -401,6 +405,27 @@ export default function HomePage() {
             </div>
           );
         })}
+      </div>
+
+      {/* 高级工具集入口 */}
+      <div className="max-w-4xl mx-auto bg-gradient-to-r from-morandi-purple-500 to-morandi-indigo-600 rounded-2xl p-6 mb-8 text-white">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/20 rounded-xl">
+              <Sparkles className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold">高级思维工具集</h3>
+              <p className="text-purple-100">作文思维方法 - 从套路到灵活运用</p>
+            </div>
+          </div>
+          <Link
+            href="/tools/advanced-tools"
+            className="bg-white text-morandi-purple-600 font-bold py-3 px-6 rounded-xl hover:bg-morandi-purple-50 transition-colors whitespace-nowrap"
+          >
+            解锁高级工具
+          </Link>
+        </div>
       </div>
 
       {/* 底部导航 */}

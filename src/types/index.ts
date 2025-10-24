@@ -33,7 +33,13 @@ export interface WritingTool {
     minPracticeCount?: number;
     // 连续写作天数要求
     minWritingStreak?: number;
+    // 密码解锁
+    password?: string;
+    // 解锁路径说明
+    unlockPath?: string;
   };
+  // 新增子工具列表（仅用于顶层分类工具）
+  subTools?: string[];
 }
 
 // 关卡进度
