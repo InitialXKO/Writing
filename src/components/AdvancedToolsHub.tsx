@@ -94,8 +94,8 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
             <div>
               <p className="text-morandi-purple-800 font-medium">作文思维方法</p>
               <p className="text-morandi-purple-700 text-sm">
-                将写作从一套僵化的"范文套用"，提升为一个由可复用思维方法和表达技巧动态组合的创造性系统。
-                每个方法都是一个工具，让你灵活、有深度地组织和表达你的想法。
+                告别死记硬背的范文套路，用灵活的思维方法和表达技巧来构建你的独特文章。
+                每一种方法都是一个实用工具，帮助你更好地组织思路，清晰地表达想法。
               </p>
             </div>
           </div>
