@@ -73,12 +73,12 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
               </div>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-              <div className="flex items-center gap-2 text-morandi-purple-100">
-                <Lightbulb className="w-5 h-5" />
-                <span className="font-medium">超纲警告</span>
+            <div className="bg-gradient-to-br from-morandi-orange-50 to-morandi-red-50 border border-morandi-orange-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 text-morandi-orange-800">
+                <AlertTriangle className="w-5 h-5 text-morandi-orange-700" />
+                <span className="font-bold">超纲警告</span>
               </div>
-              <p className="text-white font-bold text-lg mt-1">模式让你在约束中游刃有余；思考让你在创造中独一无二。</p>
+              <p className="text-morandi-orange-700 font-bold text-lg mt-1">模式让你在约束中游刃有余；思考让你在创造中独一无二。</p>
             </div>
           </div>
         </div>
