@@ -92,10 +92,10 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
               <Lightbulb className="w-5 h-5 text-morandi-purple-600" />
             </div>
             <div>
-              <p className="text-morandi-purple-800 font-medium">作文模式网络</p>
+              <p className="text-morandi-purple-800 font-medium">作文思维方法</p>
               <p className="text-morandi-purple-700 text-sm">
-                将写作从一套僵化的"范文模板"，提升为一个由可复用思维模式和表达模式动态组合的创造性系统。
-                每个模式都是一个工具，让你像架构师一样灵活、有深度地构建任何文章。
+                将写作从一套僵化的"范文套用"，提升为一个由可复用思维方法和表达技巧动态组合的创造性系统。
+                每个方法都是一个工具，让你灵活、有深度地组织和表达你的想法。
               </p>
             </div>
           </div>
