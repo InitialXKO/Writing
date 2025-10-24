@@ -226,7 +226,7 @@ export const useVoiceRecorder = (): UseVoiceRecorderReturn => {
     stopRecording();
     setRecordingTime(0);
     setSegments([]);
-    audioChunksRef.current = [];
+    segmentAudioChunksRef.current = {};
   };
 
   const addTranscriptToSegment = (segmentId: string, transcript: string) => {
