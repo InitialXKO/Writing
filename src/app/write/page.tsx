@@ -1,18 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
 import { getActualEndpoint } from '@/lib/utils';
 import { Essay, EssayVersion } from '@/types';
-import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle, Mic, Volume2 } from 'lucide-react';
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
 import CompositionPaper from '@/components/CompositionPaper';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import VoiceRecognitionPanel from '@/components/VoiceRecognitionPanel';
 
 interface VersionNode extends EssayVersion {
   order: number;
@@ -417,6 +418,7 @@ function WriteContent() {
   const [editingEssayId, setEditingEssayId] = useState<string | null>(null);
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
   const [actionItems, setActionItems] = useState<any[]>([]);
+  const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
 
   // 计算已解锁练习的工具（自由写作始终可选）
   const availablePracticeTools = writingTools.filter(tool => {
@@ -1088,12 +1090,21 @@ ${simplifiedHistory}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-morandi-gray-700 mb-2 flex items-center gap-2">
-                <div className="p-1 bg-morandi-green-100 rounded-md">
-                  <Edit3 className="w-4 h-4 text-morandi-green-600" />
-                </div>
-                作文内容
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-morandi-gray-700 flex items-center gap-2">
+                  <div className="p-1 bg-morandi-green-100 rounded-md">
+                    <Edit3 className="w-4 h-4 text-morandi-green-600" />
+                  </div>
+                  作文内容
+                </label>
+                <button
+                  onClick={() => setIsVoicePanelOpen(true)}
+                  className="flex items-center gap-1 text-sm bg-morandi-purple-100 hover:bg-morandi-purple-200 text-morandi-purple-700 font-medium px-3 py-1 rounded-lg transition-colors"
+                >
+                  <Mic className="w-4 h-4" />
+                  语音输入
+                </button>
+              </div>
               <CompositionPaper
                 value={content}
                 onChange={setContent}
@@ -1222,6 +1233,33 @@ ${simplifiedHistory}
           setConfirmAction(null);
         }}
       />
+
+      {/* 语音识别面板 */}
+      {isVoicePanelOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-morandi-gray-800">语音转写</h3>
+                <button
+                  onClick={() => setIsVoicePanelOpen(false)}
+                  className="text-morandi-gray-500 hover:text-morandi-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <VoiceRecognitionPanel
+                onTextInsert={(text) => {
+                  setContent(prev => prev + (prev ? '\n' : '') + text);
+                  setIsVoicePanelOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
