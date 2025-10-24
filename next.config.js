@@ -6,8 +6,6 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  // 添加输出目录配置
-  distDir: '.next',
   // 解决Vercel部署时的JavaScript语法错误
   webpack: (config) => {
     config.module.rules.push({
