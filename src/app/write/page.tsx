@@ -12,7 +12,7 @@ import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
 import CompositionPaper from '@/components/CompositionPaper';
-import MediaInput from '@/components/MediaInput';
+import MediaInput, { AudioCaptureResult } from '@/components/MediaInput';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
@@ -635,56 +635,30 @@ function WriteContent() {
   };
 
   // 处理音频录制
-  const handleAudioCapture = async (base64Audio: string) => {
+  const handleAudioCapture = async ({ audioData, transcript }: AudioCaptureResult) => {
     try {
-      showSuccess('正在转录语音...');
-      setAudioUrl(base64Audio);
+      setAudioUrl(audioData);
       setContentType('audio');
-      
-      // 从 base64 中提取音频数据
-      const base64Data = base64Audio.split(',')[1];
-      
-      // 调用 Speech-to-Text API
-      const response = await fetch('https://text.pollinations.ai/openai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'openai-audio',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: '请转录这段音频：' },
-              {
-                type: 'input_audio',
-                input_audio: {
-                  data: base64Data,
-                  format: 'wav'
-                }
-              }
-            ]
-          }]
-        }),
-      });
 
-      if (!response.ok) {
-        throw new Error(`转录失败: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const transcription = data.choices?.[0]?.message?.content || '';
-      
-      if (transcription) {
-        setTranscribedText(transcription);
-        setContent(transcription);
-        showSuccess('语音转录成功！');
+      const normalizedTranscript = transcript?.trim();
+      if (normalizedTranscript) {
+        setTranscribedText(normalizedTranscript);
+        setContent(normalizedTranscript);
+        if (typeof showSuccess === 'function') {
+          showSuccess('语音识别成功！');
+        }
       } else {
-        showError('未能转录音频内容');
+        setTranscribedText('');
+        setContent('');
+        if (typeof showWarning === 'function') {
+          showWarning('识别未捕捉到语音内容，请重试或注意语速和清晰度');
+        }
       }
     } catch (error) {
-      console.error('音频转录失败:', error);
-      showError('音频转录失败，请重试');
+      console.error('语音识别处理失败:', error);
+      if (typeof showError === 'function') {
+        showError('语音识别处理失败，请重试');
+      }
       handleClearMedia();
     }
   };

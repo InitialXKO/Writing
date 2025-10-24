@@ -3,14 +3,21 @@
 import { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, Mic, X, Loader2 } from 'lucide-react';
 
+interface AudioCaptureResult {
+  audioData: string;
+  transcript: string;
+}
+
 interface MediaInputProps {
   onImageCapture: (imageData: string) => Promise<void>;
-  onAudioCapture: (audioData: string) => Promise<void>;
+  onAudioCapture: (result: AudioCaptureResult) => Promise<void>;
   currentImage?: string;
   currentAudio?: string;
   onClear: () => void;
   disabled?: boolean;
 }
+
+export type { AudioCaptureResult };
 
 export default function MediaInput({
   onImageCapture,
@@ -25,6 +32,8 @@ export default function MediaInput({
   const [recordingTime, setRecordingTime] = useState(0);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [finalTranscriptDisplay, setFinalTranscriptDisplay] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -33,6 +42,10 @@ export default function MediaInput({
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const completionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const wasProcessingRef = useRef(false);
+  const recognitionRef = useRef<any>(null);
+  const finalTranscriptRef = useRef<string>('');
+  const interimTranscriptRef = useRef<string>('');
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     if (isProcessing) {
@@ -140,7 +153,16 @@ export default function MediaInput({
 
   const startRecording = async () => {
     try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        alert('您的浏览器不支持语音识别，请使用 Chrome、Edge 或 Safari 浏览器');
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -151,24 +173,49 @@ export default function MediaInput({
         }
       };
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-          const base64Data = event.target?.result as string;
-          setIsProcessing(true);
-          try {
-            await onAudioCapture(base64Data);
-          } finally {
-            setIsProcessing(false);
-          }
-        };
-        reader.readAsDataURL(audioBlob);
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      
+      recognition.lang = 'zh-CN';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
 
-        stream.getTracks().forEach(track => track.stop());
+      finalTranscriptRef.current = '';
+      setInterimTranscript('');
+      setFinalTranscriptDisplay('');
+
+      recognition.onresult = (event: any) => {
+        let interimText = '';
+        let finalText = finalTranscriptRef.current;
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalText += transcript;
+          } else {
+            interimText += transcript;
+          }
+        }
+
+        finalTranscriptRef.current = finalText;
+        interimTranscriptRef.current = interimText;
+        setFinalTranscriptDisplay(finalText);
+        setInterimTranscript(interimText);
       };
 
+      recognition.onerror = (event: any) => {
+        console.error('语音识别错误:', event.error);
+        if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          alert(`语音识别出错: ${event.error}`);
+        }
+      };
+
+      mediaRecorder.onstop = null;
+
       mediaRecorder.start();
+      recognition.start();
+      
       setIsRecording(true);
       setRecordingTime(0);
 
@@ -181,13 +228,69 @@ export default function MediaInput({
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+  const stopRecording = async () => {
+    if (isRecording) {
       setIsRecording(false);
+      
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = null;
+      }
+
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        
+        await new Promise<void>((resolve) => {
+          if (mediaRecorderRef.current) {
+            mediaRecorderRef.current.onstop = async () => {
+              const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+              const reader = new FileReader();
+              reader.onload = async (event) => {
+                const base64Data = event.target?.result as string;
+                const combinedTranscript = (
+                  `${finalTranscriptRef.current} ${interimTranscriptRef.current}`
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                );
+                
+                setIsProcessing(true);
+                setProgressMessage('正在处理语音识别结果...');
+                
+                try {
+                  await onAudioCapture({
+                    audioData: base64Data,
+                    transcript: combinedTranscript
+                  });
+                } finally {
+                  setIsProcessing(false);
+                  setProgressMessage('');
+                  finalTranscriptRef.current = '';
+                  interimTranscriptRef.current = '';
+                  setInterimTranscript('');
+                  setFinalTranscriptDisplay('');
+                }
+                
+                resolve();
+              };
+              reader.readAsDataURL(audioBlob);
+
+              if (mediaStreamRef.current) {
+                mediaStreamRef.current.getTracks().forEach(track => track.stop());
+                mediaStreamRef.current = null;
+              }
+            };
+          } else {
+            resolve();
+          }
+        });
+      } else if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
       }
     }
   };
@@ -313,6 +416,23 @@ export default function MediaInput({
           </button>
         )}
       </div>
+
+      {isRecording && (finalTranscriptDisplay || interimTranscript) && (
+        <div className="mt-4 p-4 bg-morandi-pink-50 border border-morandi-pink-200 rounded-xl">
+          <h4 className="text-sm font-medium text-morandi-pink-800 mb-2 flex items-center gap-2">
+            <Mic className="w-4 h-4" />
+            实时识别
+          </h4>
+          <div className="text-sm text-morandi-gray-700 space-y-1">
+            {finalTranscriptDisplay && (
+              <p className="font-medium">{finalTranscriptDisplay}</p>
+            )}
+            {interimTranscript && (
+              <p className="text-morandi-gray-500 italic">{interimTranscript}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <input
         ref={fileInputRef}
