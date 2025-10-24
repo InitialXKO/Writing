@@ -7,7 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "setup-vosk": "node scripts/setup-vosk-server.js",
+    "start-vosk": "node scripts/start-vosk-server.js"
   },
   "dependencies": {
     "@types/node": "^20.11.0",
