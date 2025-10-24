@@ -1,19 +1,19 @@
-// 动态检查是否可以加载Vosk模块
+// 动态检查是否可以加载Vosk WASM模块
 let voskModule: any = null;
 let canUseVosk = false;
 
-// 只在服务器端尝试加载Vosk模块
+// 只在服务器端尝试加载Vosk WASM模块
 if (typeof window === 'undefined') {
   try {
-    voskModule = require('vosk');
+    voskModule = require('vosk-wasm');
     canUseVosk = true;
-    console.log('Vosk模块加载成功');
+    console.log('Vosk WASM模块加载成功');
   } catch (error) {
-    console.log('Vosk模块加载失败，将使用模拟模式:', (error as Error).message);
+    console.log('Vosk WASM模块加载失败，将使用模拟模式:', (error as Error).message);
     canUseVosk = false;
   }
 } else {
-  console.log('客户端环境，跳过Vosk模块加载');
+  console.log('客户端环境，跳过Vosk WASM模块加载');
   canUseVosk = false;
 }
 
@@ -105,7 +105,7 @@ export class VoskRecognizer {
       recognizer.acceptWaveform(int16Array);
 
       // 获取最终结果
-      const result = recognizer.finalResult();
+      const result = recognizer.result();
 
       // 解析结果
       return {
