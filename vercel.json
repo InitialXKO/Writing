@@ -6,12 +6,5 @@
       "memory": 1024,
       "maxDuration": 300
     }
-  },
-  "routes": [
-    {
-      "src": "/api/recognize",
-      "methods": ["GET", "POST"],
-      "dest": "/src/app/api/recognize/route.ts"
-    }
-  ]
+  }
 }
