@@ -11,7 +11,7 @@
     {
       "src": "/api/recognize",
       "methods": ["GET", "POST"],
-      "dest": "/api/recognize/index.js"
+      "dest": "/src/app/api/recognize/route.ts"
     }
   ]
 }

@@ -1,5 +1,4 @@
-// Vercel Function: 语音识别API
-const { NextResponse } = require('next/server');
+import { NextRequest, NextResponse } from 'next/server';
 
 // 创建一个模拟的识别器类用于构建时和Vosk不可用时
 class MockVoskRecognizer {
@@ -17,7 +16,7 @@ class MockVoskRecognizer {
 }
 
 // 只在服务器运行时导入Vosk模块
-let VoskRecognizerClass = MockVoskRecognizer;
+let VoskRecognizerClass: any = MockVoskRecognizer;
 
 // 在服务器运行时尝试导入真实的Vosk识别器
 if (typeof window === 'undefined') {
@@ -26,7 +25,7 @@ if (typeof window === 'undefined') {
     VoskRecognizerClass = module.VoskRecognizer;
     console.log('Vosk识别器模块加载成功');
   }).catch((error) => {
-    console.log('Vosk识别器模块加载失败，使用模拟模式:', error.message);
+    console.log('Vosk识别器模块加载失败，使用模拟模式:', (error as Error).message);
   });
 }
 
@@ -36,7 +35,7 @@ async function getVoskRecognizer() {
   return recognizer;
 }
 
-export async function POST(request) {
+export async function POST(request: NextRequest) {
   try {
     // 检查是否禁用Vosk
     if (process.env.DISABLE_VOSK === 'true') {

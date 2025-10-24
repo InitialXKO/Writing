@@ -1,5 +1,5 @@
 // 动态检查是否可以加载Vosk模块
-let voskModule = null;
+let voskModule: any = null;
 let canUseVosk = false;
 
 // 只在服务器端尝试加载Vosk模块
@@ -9,7 +9,7 @@ if (typeof window === 'undefined') {
     canUseVosk = true;
     console.log('Vosk模块加载成功');
   } catch (error) {
-    console.log('Vosk模块加载失败，将使用模拟模式:', error.message);
+    console.log('Vosk模块加载失败，将使用模拟模式:', (error as Error).message);
     canUseVosk = false;
   }
 } else {
@@ -17,13 +17,11 @@ if (typeof window === 'undefined') {
   canUseVosk = false;
 }
 
-class VoskRecognizer {
-  constructor() {
-    this.model = null;
-    this.isInitialized = false;
-  }
+export class VoskRecognizer {
+  private model: any = null;
+  private isInitialized = false;
 
-  async initialize() {
+  async initialize(): Promise<void> {
     if (this.isInitialized) {
       return;
     }
@@ -49,7 +47,11 @@ class VoskRecognizer {
     }
   }
 
-  async recognize(audioBuffer) {
+  async recognize(audioBuffer: ArrayBuffer): Promise<{
+    text: string;
+    confidence: number;
+    words: Array<{ word: string; start: number; end: number }>;
+  }> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -68,11 +70,11 @@ class VoskRecognizer {
     }
   }
 
-  async isReady() {
+  async isReady(): Promise<boolean> {
     return this.isInitialized;
   }
 
-  async getModelPath() {
+  private async getModelPath(): Promise<string> {
     // 在实际部署中，模型应该被下载到 /tmp/vosk-model 目录
     // 这里返回一个默认的模型路径
 
@@ -95,7 +97,11 @@ class VoskRecognizer {
     throw new Error('Vosk模型文件未找到。请确保模型已下载到正确位置。');
   }
 
-  async realRecognition(audioBuffer) {
+  private async realRecognition(audioBuffer: ArrayBuffer): Promise<{
+    text: string;
+    confidence: number;
+    words: Array<{ word: string; start: number; end: number }>;
+  }> {
     if (!canUseVosk) {
       throw new Error('Vosk模块不可用');
     }
@@ -117,7 +123,7 @@ class VoskRecognizer {
       return {
         text: result.text || '',
         confidence: result.confidence || 0.9,
-        words: result.result?.map((word) => ({
+        words: result.result?.map((word: any) => ({
           word: word.word,
           start: word.start,
           end: word.end
@@ -129,7 +135,11 @@ class VoskRecognizer {
     }
   }
 
-  simulateRecognition(audioBuffer) {
+  private simulateRecognition(audioBuffer: ArrayBuffer): {
+    text: string;
+    confidence: number;
+    words: Array<{ word: string; start: number; end: number }>;
+  } {
     // 返回模拟的识别结果
     // 在实际应用中，可以根据音频长度等信息生成更智能的模拟结果
     const text = "这是使用Vosk语音识别库识别的模拟结果。如果看到此消息，请确保已正确配置Vosk服务器端环境。";
@@ -149,5 +159,3 @@ class VoskRecognizer {
     };
   }
 }
-
-module.exports = { VoskRecognizer };
