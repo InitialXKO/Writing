@@ -416,7 +416,7 @@ export default function HomePage() {
             </div>
             <div>
               <h3 className="text-xl font-bold">高级思维工具集</h3>
-              <p className="text-purple-100">作文模式网络 - 从模板到动态模式组合</p>
+              <p className="text-purple-100">作文思维方法 - 从套路到灵活运用</p>
             </div>
           </div>
           <Link
