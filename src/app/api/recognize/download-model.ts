@@ -39,9 +39,10 @@ export async function ensureModel(): Promise<string> {
     // 保存zip文件
     const fileStream = fs.createWriteStream(zipPath);
     await new Promise<void>((resolve, reject) => {
-      res.body.pipe(fileStream);
       res.body.on('error', reject);
-      fileStream.on('finish', () => resolve());
+      fileStream.on('error', reject);
+      fileStream.on('finish', resolve);
+      res.body.pipe(fileStream);
     });
 
     console.log('正在解压模型文件...');
