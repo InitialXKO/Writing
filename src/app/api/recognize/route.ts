@@ -18,20 +18,35 @@ class MockVoskRecognizer {
 // 只在服务器运行时导入Vosk模块
 let VoskRecognizerClass: any = MockVoskRecognizer;
 
-// 在服务器启动时尝试导入真实的Vosk识别器
-if (typeof window === 'undefined') {
-  try {
-    // 使用动态导入避免构建时错误
-    import('./vosk-recognizer').then((module) => {
-      VoskRecognizerClass = module.VoskRecognizer;
-      console.log('Vosk识别器模块加载成功');
-    }).catch((error) => {
-      console.warn('Vosk识别器模块加载失败，使用模拟模式:', error);
-    });
-  } catch (error) {
-    console.warn('Vosk识别器初始化失败，使用模拟模式:', error);
+// 在服务器运行时尝试导入真实的Vosk识别器
+// 使用延迟导入避免构建时错误
+let hasAttemptedImport = false;
+
+function attemptImport() {
+  if (hasAttemptedImport) return;
+  hasAttemptedImport = true;
+
+  if (typeof window === 'undefined') {
+    try {
+      // 使用动态导入避免构建时错误
+      import('./vosk-recognizer').then((module) => {
+        VoskRecognizerClass = module.VoskRecognizer;
+        console.log('Vosk识别器模块加载成功');
+      }).catch((error) => {
+        console.log('Vosk识别器模块加载失败，使用模拟模式:', error.message);
+      });
+    } catch (error) {
+      console.log('Vosk识别器初始化失败，使用模拟模式:', error.message);
+    }
   }
 }
+
+// 在第一次调用时尝试导入
+const originalGetVoskRecognizer = getVoskRecognizer;
+getVoskRecognizer = async function() {
+  attemptImport();
+  return originalGetVoskRecognizer();
+};
 
 async function getVoskRecognizer() {
   const recognizer = new VoskRecognizerClass();

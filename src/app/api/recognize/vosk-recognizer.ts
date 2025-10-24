@@ -2,12 +2,18 @@
 let voskModule: any = null;
 let canUseVosk = false;
 
-try {
-  voskModule = require('vosk');
-  canUseVosk = true;
-  console.log('Vosk模块加载成功');
-} catch (error) {
-  console.warn('Vosk模块加载失败，将使用模拟模式:', error);
+// 只在服务器端尝试加载Vosk模块
+if (typeof window === 'undefined') {
+  try {
+    voskModule = require('vosk');
+    canUseVosk = true;
+    console.log('Vosk模块加载成功');
+  } catch (error) {
+    console.log('Vosk模块加载失败，将使用模拟模式:', error.message);
+    canUseVosk = false;
+  }
+} else {
+  console.log('客户端环境，跳过Vosk模块加载');
   canUseVosk = false;
 }
 
