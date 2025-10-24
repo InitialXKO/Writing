@@ -5,7 +5,7 @@ import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
 import { getActualEndpoint } from '@/lib/utils';
-import { Essay, EssayVersion } from '@/types';
+import { Essay, EssayVersion, AIConfig } from '@/types';
 import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle, Mic, Volume2 } from 'lucide-react';
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
@@ -400,6 +400,153 @@ const generateSimplifiedVersionHistory = (essay: Essay): string => {
   return result;
 };
 
+type ChatMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+};
+
+const POLLINATIONS_DEFAULT_MODELS = ['openai', 'mistral', 'llama'] as const;
+
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const callOpenAIChatCompletion = async (
+  messages: ChatMessage[],
+  config: AIConfig,
+  options: {
+    temperature?: number;
+    maxTokens?: number;
+  } = {}
+): Promise<string> => {
+  const { temperature = 0.7, maxTokens = 1500 } = options;
+  const endpoint = getActualEndpoint(config.baseURL);
+  const response = await fetch(`${endpoint}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: config.model || 'gpt-4',
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `API请求失败: ${response.status} ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}...`
+    );
+  }
+
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    const responseText = await response.text();
+    throw new Error(
+      `API返回非JSON响应，内容类型: ${contentType || 'unknown'}\n响应内容预览: ${responseText.substring(
+        0,
+        200
+      )}...`
+    );
+  }
+
+  const data = await response.json();
+
+  if (!data?.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+    throw new Error('API响应结构不符合预期，缺少choices字段');
+  }
+
+  const content = data.choices[0]?.message?.content;
+  if (!isNonEmptyString(content)) {
+    throw new Error('AI响应内容为空或格式不正确');
+  }
+
+  return content;
+};
+
+const callPollinationsChatWithFallback = async (
+  messages: ChatMessage[],
+  options: {
+    preferredModel?: string;
+    fallbackModels?: string[];
+    seed?: number;
+    timeoutMs?: number;
+    maxRetries?: number;
+  } = {}
+): Promise<{ content: string; model: string }> => {
+  const { preferredModel, fallbackModels, seed = 42, timeoutMs, maxRetries = 2 } = options;
+
+  const orderedModels = Array.from(
+    new Set(
+      [preferredModel, ...(fallbackModels ?? []), ...POLLINATIONS_DEFAULT_MODELS].filter(isNonEmptyString)
+    )
+  );
+
+  const primaryModel = orderedModels[0] ?? 'openai';
+  const secondaryModels = orderedModels.slice(1);
+
+  const executeRequest = async (attempt: number): Promise<{ content: string; model: string }> => {
+    const response = await fetch('/api/pollinations/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages,
+        seed,
+        model: primaryModel,
+        fallbackModels: secondaryModels,
+        timeoutMs,
+        jsonMode: false,
+      }),
+    });
+
+    if (response.status === 429 && attempt < maxRetries) {
+      const retryAfterHeader = response.headers.get('Retry-After');
+      const parsedRetryAfter = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : Number.NaN;
+      const waitMs = Number.isFinite(parsedRetryAfter) && parsedRetryAfter > 0 ? parsedRetryAfter * 1000 : 3000;
+      const waitSeconds = Math.max(1, Math.round(waitMs / 1000));
+      console.info(
+        `[Pollinations] 命中速率限制，${waitSeconds} 秒后重试（第 ${attempt + 1} 次重试）`
+      );
+      await sleep(waitMs);
+      return executeRequest(attempt + 1);
+    }
+
+    const text = await response.text();
+    let data: { content?: string; model?: string; error?: string; retryAfter?: string | number } | null = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      throw new Error(`Pollinations代理返回的响应无法解析: ${text.substring(0, 200)}...`);
+    }
+
+    if (!response.ok) {
+      const retryAfterHeader = response.headers.get('Retry-After');
+      const fallbackRetryAfter =
+        data?.retryAfter && Number.isFinite(Number(data.retryAfter)) ? String(data.retryAfter) : undefined;
+      const retryAfter = retryAfterHeader || fallbackRetryAfter;
+      const errorMessage = data?.error || 'Pollinations代理请求失败';
+      if (retryAfter) {
+        throw new Error(`${errorMessage}（请在 ${retryAfter} 秒后重试）`);
+      }
+      throw new Error(errorMessage);
+    }
+
+    if (!data || !isNonEmptyString(data.content)) {
+      throw new Error('Pollinations代理未返回有效的内容');
+    }
+
+    return { content: data.content, model: data.model ?? primaryModel };
+  };
+
+  return executeRequest(0);
+};
+
 function WriteContent() {
   const { addEssay, updateEssay, addEssayVersion, updateEssayVersion, essays, aiConfig, progress, setDailyChallenge, updateHabitTracker } = useAppStore();
   const { showSuccess, showError, showWarning } = useNotificationContext();
@@ -428,19 +575,14 @@ function WriteContent() {
   });
 
   const runOverallReview = async (essayId: string) => {
-    if (!aiConfig?.apiKey) {
-      return;
-    }
-
     const { essays: currentEssays } = useAppStore.getState();
     const essay = currentEssays.find(item => item.id === essayId);
     if (!essay) {
       return;
     }
 
-    const { latestLabel, latestContent, formattedHistory } = prepareEssayHistoryData(essay);
+    const { latestLabel, latestContent } = prepareEssayHistoryData(essay);
     const simplifiedHistory = generateSimplifiedVersionHistory(essay);
-    const endpoint = getActualEndpoint(aiConfig.baseURL);
 
     const overallPrompt = `请作为小学六年级作文指导老师，基于自由写作的评价标准，对作文《${essay.title}》进行整体批改。请关注学生在不同版本中的进步，以及仍可提升的方向。
 
@@ -457,64 +599,44 @@ ${simplifiedHistory}
 
 请保持温暖、鼓励的语气，同时指出持续精进的方向。`;
 
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。',
+      },
+      {
+        role: 'user',
+        content: overallPrompt,
+      },
+    ];
+
+    const usingCustomApi = isNonEmptyString(aiConfig?.apiKey);
+
     try {
-      const response = await fetch(`${endpoint}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${aiConfig.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: aiConfig.model || 'gpt-4',
-          messages: [
-            {
-              role: 'system',
-              content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。',
-            },
-            {
-              role: 'user',
-              content: overallPrompt,
-            },
-          ],
+      let overallFeedback: string;
+      if (usingCustomApi && aiConfig) {
+        overallFeedback = await callOpenAIChatCompletion(messages, aiConfig, {
           temperature: 0.7,
-          max_tokens: 1500,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`整体批改请求失败: ${response.status} ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}...`);
+          maxTokens: 1500,
+        });
+      } else {
+        const { content: pollinationsFeedback, model: usedModel } = await callPollinationsChatWithFallback(
+          messages,
+          {
+            preferredModel: 'openai',
+            seed: 42,
+            maxRetries: 3,
+          }
+        );
+        overallFeedback = pollinationsFeedback;
+        console.info('[Pollinations] 使用模型进行整体批改:', usedModel);
       }
 
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const responseText = await response.text();
-        throw new Error(`整体批改返回非JSON响应，内容类型: ${contentType || 'unknown'}\n响应内容预览: ${responseText.substring(0, 200)}...`);
-      }
-
-      const data = await response.json();
-
-      // 增加更多容错判断，处理不同API可能的响应结构差异
-      if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-        console.error('Invalid API response structure:', data);
-        return;
-      }
-
-      const choice = data.choices[0];
-      if (!choice || !choice.message || typeof choice.message.content !== 'string') {
-        console.error('Invalid choice structure:', choice);
-        // 记录原始响应以便调试
-        console.error('Raw response data:', data);
-        return;
-      }
-
-      const overallFeedback = choice.message.content;
       if (overallFeedback) {
         updateEssay(essayId, { feedback: overallFeedback });
       }
     } catch (error: unknown) {
       console.error('整体批改失败:', error);
-      // 向用户显示错误提示
       if (typeof showError === 'function') {
         const errorMessage = error instanceof Error ? error.message : String(error);
         showError(`整体批改失败: ${errorMessage || '未知错误'}`);
@@ -716,11 +838,7 @@ ${simplifiedHistory}
       return;
     }
 
-    if (!aiConfig?.apiKey) {
-      // 没有API密钥时直接跳转到设置页面
-      window.location.href = '/settings';
-      return;
-    }
+    const usingCustomApi = isNonEmptyString(aiConfig?.apiKey);
 
     setIsGenerating(true);
     setFeedback('正在生成反馈...');
@@ -828,51 +946,35 @@ ${simplifiedHistory}
 
 继续加油！`;
 
-      // 解析实际 API 端点
-      const endpoint = getActualEndpoint(aiConfig?.baseURL);
-      console.log('API Endpoint:', endpoint); // 调试日志
-
-      // 调用真实的AI API
-      const response = await fetch(`${endpoint}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${aiConfig.apiKey}`,
-          'Content-Type': 'application/json',
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。',
         },
-        body: JSON.stringify({
-          model: aiConfig.model || 'gpt-4',
-          messages: [
-            {
-              role: 'system',
-              content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ];
+
+      let aiFeedback: string;
+      if (usingCustomApi && aiConfig) {
+        aiFeedback = await callOpenAIChatCompletion(messages, aiConfig, {
           temperature: 0.7,
-          max_tokens: 1500,
-        }),
-      });
-
-      if (!response.ok) {
-        // 尝试读取错误响应体
-        const errorText = await response.text();
-        console.error('API Error Response:', errorText);
-        throw new Error(`API请求失败: ${response.status} ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}...`);
+          maxTokens: 1500,
+        });
+      } else {
+        const { content: pollinationsFeedback, model: usedModel } = await callPollinationsChatWithFallback(
+          messages,
+          {
+            preferredModel: 'openai',
+            seed: 42,
+            maxRetries: 3,
+          }
+        );
+        aiFeedback = pollinationsFeedback;
+        console.info('[Pollinations] 使用模型进行作文批改:', usedModel);
       }
-
-      // 检查响应内容类型
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const responseText = await response.text();
-        console.error('Non-JSON Response:', responseText);
-        throw new Error(`API返回非JSON响应，内容类型: ${contentType || 'unknown'}\n响应内容预览: ${responseText.substring(0, 200)}...`);
-      }
-
-      const data = await response.json();
-      const aiFeedback = data.choices[0]?.message?.content || 'AI批改结果为空';
 
       setFeedback(aiFeedback);
 
@@ -956,21 +1058,29 @@ ${simplifiedHistory}
     } catch (error) {
       console.error('AI批改失败:', error);
       const errorMessage = error instanceof Error ? error.message : '未知错误';
-      setFeedback(`批改失败：${errorMessage}\n\n请检查您的AI配置是否正确（API密钥、基础URL、模型等），或稍后重试`);
+      const suggestion = usingCustomApi
+        ? '请检查您的AI配置是否正确（API密钥、基础URL、模型等），或稍后重试'
+        : '请稍后重试，或稍微降低请求频率（Pollinations 文本接口建议间隔约 3 秒）。';
+      setFeedback(`批改失败：${errorMessage}\n\n${suggestion}`);
 
-      // 提供检查配置的选项
-      const handleConfirmCheckConfig = () => {
-        setIsConfirmDialogOpen(false);
-        setConfirmAction(null);
-        window.location.href = '/settings';
-      };
+      if (usingCustomApi && aiConfig) {
+        const handleConfirmCheckConfig = () => {
+          setIsConfirmDialogOpen(false);
+          setConfirmAction(null);
+          window.location.href = '/settings';
+        };
 
-      setConfirmDialogProps({
-        title: 'AI批改失败',
-        message: `AI批改失败：${errorMessage}\n\n建议检查AI配置是否正确，是否前往设置页面检查配置？`
-      });
-      setConfirmAction(() => handleConfirmCheckConfig);
-      setIsConfirmDialogOpen(true);
+        setConfirmDialogProps({
+          title: 'AI批改失败',
+          message: `AI批改失败：${errorMessage}\n\n建议检查您的AI配置是否正确，是否前往设置页面检查配置？`
+        });
+        setConfirmAction(() => handleConfirmCheckConfig);
+        setIsConfirmDialogOpen(true);
+      } else {
+        if (typeof showError === 'function') {
+          showError(`AI批改失败：${errorMessage}`);
+        }
+      }
     } finally {
       setIsGenerating(false);
     }
