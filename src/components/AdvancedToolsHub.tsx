@@ -76,7 +76,7 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center gap-2 text-morandi-purple-100">
                 <Lightbulb className="w-5 h-5" />
-                <span className="font-medium">核心理念</span>
+                <span className="font-medium">超纲警告</span>
               </div>
               <p className="text-white font-bold text-lg mt-1">从模板到动态模式组合</p>
             </div>
@@ -92,7 +92,7 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
               <Lightbulb className="w-5 h-5 text-morandi-purple-600" />
             </div>
             <div>
-              <p className="text-morandi-purple-800 font-medium">超纲警告</p>
+              <p className="text-morandi-purple-800 font-medium">作文模式网络</p>
               <p className="text-morandi-purple-700 text-sm">
                 将写作从一套僵化的"范文模板"，提升为一个由可复用思维模式和表达模式动态组合的创造性系统。
                 每个模式都是一个工具，让你像架构师一样灵活、有深度地构建任何文章。
