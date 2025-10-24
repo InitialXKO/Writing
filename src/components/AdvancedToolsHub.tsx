@@ -78,7 +78,7 @@ const AdvancedToolsHub = ({ tools, onToolSelect, onBack }: AdvancedToolsHubProps
                 <AlertTriangle className="w-5 h-5 text-morandi-orange-700" />
                 <span className="font-bold">超纲警告</span>
               </div>
-              <p className="text-morandi-orange-700 font-bold text-lg mt-1">模式让你在约束中游刃有余；思考让你在创造中独一无二。</p>
+              <p className="text-morandi-orange-700">以下内容属于超纲知识，仅供学有余力的同学参考。请确保已熟练掌握基础写作工具后再学习这些高级技巧。</p>
             </div>
           </div>
         </div>
