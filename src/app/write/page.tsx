@@ -825,84 +825,106 @@ function WriteContent() {
       if (normalizedTranscript) {
         setTranscribedText(normalizedTranscript);
 
-        // 如果稿纸已有内容，需要先用AI校正后再覆盖
-        const currentContent = content.trim();
-        if (currentContent) {
-          console.log('📝 稿纸已有内容，调用AI校正...');
-          if (typeof showWarning === 'function') {
-            showWarning('正在智能校正标点和错别字...');
+        const originalContent = content.trim();
+        let baseText = originalContent;
+        let additionForAI = normalizedTranscript.trim();
+        let shouldMerge = baseText.length > 0;
+
+        if (baseText.length > 0) {
+          const trimmedExisting = baseText;
+          const trimmedRecognized = additionForAI;
+
+          let difference = trimmedRecognized;
+
+          if (trimmedRecognized.length > trimmedExisting.length) {
+            if (trimmedRecognized.startsWith(trimmedExisting)) {
+              difference = trimmedRecognized.slice(trimmedExisting.length).trimStart();
+            } else if (trimmedRecognized.endsWith(trimmedExisting)) {
+              difference = trimmedRecognized.slice(0, trimmedRecognized.length - trimmedExisting.length).trimEnd();
+            } else {
+              const index = trimmedRecognized.indexOf(trimmedExisting);
+              if (index !== -1) {
+                const before = trimmedRecognized.slice(0, index).trimEnd();
+                const after = trimmedRecognized.slice(index + trimmedExisting.length).trimStart();
+                difference = [before, after].filter(Boolean).join('\n');
+              }
+            }
           }
 
-          try {
-            const correctionPrompt = `请作为小学六年级作文指导老师，对以下语音识别的文本进行智能校正。
+          difference = difference.trim();
 
-原有内容：
-${currentContent}
-
-新增识别内容：
-${normalizedTranscript}
-
-请完成以下任务：
-1. 将原有内容和新增内容合并成完整的文章
-2. 校正标点符号（确保句号、逗号、问号等使用正确）
-3. 纠正明显的语音识别错误（如同音字错误）
-4. 严格保持原有的语气、用词和表达方式
-5. 不要改变文章的意思和风格
-
-重要：只输出校正后的完整文章内容，不要添加任何解释或评论。`;
-
-            const messages: ChatMessage[] = [
-              {
-                role: 'system',
-                content: '你是一位小学六年级作文指导老师，擅长校正标点符号和语音识别错误，同时严格保持学生原有的语气和表达方式。',
-              },
-              {
-                role: 'user',
-                content: correctionPrompt,
-              },
-            ];
-
-            const usingCustomApi = isNonEmptyString(aiConfig?.apiKey);
-            let correctedText: string;
-
-            if (usingCustomApi && aiConfig) {
-              correctedText = await callOpenAIChatCompletion(messages, aiConfig, {
-                temperature: 0.3,
-                maxTokens: 2000,
-              });
-            } else {
-              const { content: pollinationsResponse } = await callPollinationsChatWithFallback(
-                messages,
-                {
-                  preferredModel: 'openai',
-                }
-              );
-              correctedText = pollinationsResponse;
-            }
-
-            const finalText = correctedText.trim();
-            console.log('✅ AI校正完成，文本长度:', finalText.length);
-            setContent(finalText);
-            setTranscribedText(finalText);
-
-            if (typeof showSuccess === 'function') {
-              showSuccess('语音识别成功，已智能校正！');
-            }
-          } catch (error) {
-            console.error('AI校正失败:', error);
-            // 如果AI校正失败，直接合并内容
-            const mergedContent = `${currentContent}\n${normalizedTranscript}`;
-            setContent(mergedContent);
-            if (typeof showWarning === 'function') {
-              showWarning('语音识别成功，但智能校正失败，已直接添加内容');
-            }
+          if (difference && difference !== trimmedExisting.trim()) {
+            additionForAI = difference;
+          } else {
+            baseText = '';
+            additionForAI = trimmedRecognized;
+            shouldMerge = false;
           }
         } else {
-          // 稿纸为空，直接设置内容
-          setContent(normalizedTranscript);
-          console.log('✅ 设置内容成功');
+          additionForAI = additionForAI.trim();
+        }
+
+        console.log('📝 AI校正准备数据:', {
+          originalLength: originalContent.length,
+          baseLength: baseText.length,
+          additionLength: additionForAI.length,
+          shouldMerge,
+        });
+
+        if (typeof showWarning === 'function') {
+          showWarning(shouldMerge ? '正在智能校正标点和错别字...' : '正在校正语音识别内容...');
+        }
+
+        try {
+          const messages: ChatMessage[] = [
+            {
+              role: 'system',
+              content: '你是一位小学六年级作文指导老师，擅长校正标点符号和语音识别错误，同时严格保持学生原有的语气和表达方式。',
+            },
+            {
+              role: 'user',
+              content: shouldMerge
+                ? `请作为小学六年级作文指导老师，对以下语音识别文本进行智能校正。\n\n原有内容：\n${baseText}\n\n新增识别内容：\n${additionForAI}\n\n请完成以下任务：\n1. 将原有内容和新增内容合并成完整的文章\n2. 校正标点符号（确保句号、逗号、问号等使用正确）\n3. 纠正明显的语音识别错误（如同音字错误）\n4. 严格保持原有的语气、用词和表达方式\n5. 不要改变文章的意思和风格\n\n重要：只输出校正后的完整文章内容，不要添加任何解释或评论。`
+                : `请对以下语音识别文本进行标点符号和错别字校正，严格保持原有的语气、用词和表达方式，并只输出校正后的文本：\n\n${additionForAI}`,
+            },
+          ];
+
+          const usingCustomApi = isNonEmptyString(aiConfig?.apiKey);
+          let correctedText: string;
+
+          if (usingCustomApi && aiConfig) {
+            correctedText = await callOpenAIChatCompletion(messages, aiConfig, {
+              temperature: 0.3,
+              maxTokens: 2000,
+            });
+          } else {
+            const { content: pollinationsResponse } = await callPollinationsChatWithFallback(messages, {
+              preferredModel: 'openai',
+            });
+            correctedText = pollinationsResponse;
+          }
+
+          const finalText = correctedText.trim();
+          console.log('✅ AI校正完成，文本长度:', finalText.length);
+          setContent(finalText);
+          setTranscribedText(finalText);
+
           if (typeof showSuccess === 'function') {
-            showSuccess('语音识别成功！');
+            showSuccess('语音识别成功，已智能校正！');
+          }
+        } catch (error) {
+          console.error('AI校正失败:', error);
+          if (baseText) {
+            const mergedContent = [originalContent, additionForAI].filter(Boolean).join('\n').trim();
+            setContent(mergedContent);
+            setTranscribedText(mergedContent);
+          } else {
+            const fallbackText = additionForAI || normalizedTranscript;
+            setContent(fallbackText);
+            setTranscribedText(fallbackText);
+          }
+          if (typeof showWarning === 'function') {
+            showWarning('语音识别成功，但智能校正失败，已直接添加内容');
           }
         }
       } else {
