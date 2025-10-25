@@ -824,10 +824,87 @@ function WriteContent() {
 
       if (normalizedTranscript) {
         setTranscribedText(normalizedTranscript);
-        setContent(normalizedTranscript);
-        console.log('✅ 设置内容成功');
-        if (typeof showSuccess === 'function') {
-          showSuccess('语音识别成功！');
+
+        // 如果稿纸已有内容，需要先用AI校正后再覆盖
+        const currentContent = content.trim();
+        if (currentContent) {
+          console.log('📝 稿纸已有内容，调用AI校正...');
+          if (typeof showWarning === 'function') {
+            showWarning('正在智能校正标点和错别字...');
+          }
+
+          try {
+            const correctionPrompt = `请作为小学六年级作文指导老师，对以下语音识别的文本进行智能校正。
+
+原有内容：
+${currentContent}
+
+新增识别内容：
+${normalizedTranscript}
+
+请完成以下任务：
+1. 将原有内容和新增内容合并成完整的文章
+2. 校正标点符号（确保句号、逗号、问号等使用正确）
+3. 纠正明显的语音识别错误（如同音字错误）
+4. 严格保持原有的语气、用词和表达方式
+5. 不要改变文章的意思和风格
+
+重要：只输出校正后的完整文章内容，不要添加任何解释或评论。`;
+
+            const messages: ChatMessage[] = [
+              {
+                role: 'system',
+                content: '你是一位小学六年级作文指导老师，擅长校正标点符号和语音识别错误，同时严格保持学生原有的语气和表达方式。',
+              },
+              {
+                role: 'user',
+                content: correctionPrompt,
+              },
+            ];
+
+            const usingCustomApi = isNonEmptyString(aiConfig?.apiKey);
+            let correctedText: string;
+
+            if (usingCustomApi && aiConfig) {
+              correctedText = await callOpenAIChatCompletion(messages, aiConfig, {
+                temperature: 0.3,
+                maxTokens: 2000,
+              });
+            } else {
+              const { content: pollinationsResponse } = await callPollinationsChatWithFallback(
+                messages,
+                {
+                  preferredModel: 'openai',
+                  temperature: 0.3,
+                }
+              );
+              correctedText = pollinationsResponse;
+            }
+
+            const finalText = correctedText.trim();
+            console.log('✅ AI校正完成，文本长度:', finalText.length);
+            setContent(finalText);
+            setTranscribedText(finalText);
+
+            if (typeof showSuccess === 'function') {
+              showSuccess('语音识别成功，已智能校正！');
+            }
+          } catch (error) {
+            console.error('AI校正失败:', error);
+            // 如果AI校正失败，直接合并内容
+            const mergedContent = `${currentContent}\n${normalizedTranscript}`;
+            setContent(mergedContent);
+            if (typeof showWarning === 'function') {
+              showWarning('语音识别成功，但智能校正失败，已直接添加内容');
+            }
+          }
+        } else {
+          // 稿纸为空，直接设置内容
+          setContent(normalizedTranscript);
+          console.log('✅ 设置内容成功');
+          if (typeof showSuccess === 'function') {
+            showSuccess('语音识别成功！');
+          }
         }
       } else {
         console.warn('⚠️ 转录文本为空');
