@@ -631,8 +631,8 @@ function WriteContent() {
     }
 
     const normalizedText = rawText
-      .replace(/```[\s\S]*?```/g, block => block.replace(/```/g, '').trim())
-      .replace(/^[#>*\-\s]+/gm, line => line.replace(/^[#>*\-\s]+/, ''))
+      .replace(/```[\s\S]*?```/g, (block: string) => block.replace(/```/g, '').trim())
+      .replace(/^[#>*\-\s]+/gm, (line: string) => line.replace(/^[#>*\-\s]+/, ''))
       .replace(/^(?:OCR|识别|内容)(?:结果)?[:：]\s*/gi, '')
       .replace(/\r/g, '')
       .trim();
