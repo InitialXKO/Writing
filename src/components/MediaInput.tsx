@@ -344,6 +344,7 @@ export default function MediaInput({
                     }]
                   };
 
+                  console.log('发送语音识别请求到Pollinations API:', payload);
                   const apiResponse = await fetch('https://text.pollinations.ai/openai', {
                     method: 'POST',
                     headers: {
@@ -352,7 +353,10 @@ export default function MediaInput({
                     body: JSON.stringify(payload)
                   });
 
+                  console.log('API响应状态:', apiResponse.status);
                   if (!apiResponse.ok) {
+                    const errorText = await apiResponse.text();
+                    console.error('API请求失败:', apiResponse.status, apiResponse.statusText, errorText);
                     throw new Error(`API请求失败: ${apiResponse.status} ${apiResponse.statusText}`);
                   }
 

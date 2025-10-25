@@ -616,6 +616,7 @@ function WriteContent() {
         max_tokens: 2000
       };
 
+      console.log('发送图片识别请求到Pollinations API:', payload);
       const apiResponse = await fetch('https://text.pollinations.ai/openai', {
         method: 'POST',
         headers: {
@@ -624,7 +625,10 @@ function WriteContent() {
         body: JSON.stringify(payload)
       });
 
+      console.log('图片API响应状态:', apiResponse.status);
       if (!apiResponse.ok) {
+        const errorText = await apiResponse.text();
+        console.error('图片API请求失败:', apiResponse.status, apiResponse.statusText, errorText);
         throw new Error(`API请求失败: ${apiResponse.status} ${apiResponse.statusText}`);
       }
 
@@ -654,10 +658,12 @@ function WriteContent() {
   // 处理音频录制
   const handleAudioCapture = async ({ audioData, transcript }: AudioCaptureResult) => {
     try {
+      console.log('接收到语音识别结果:', { audioData, transcript });
       setAudioUrl(audioData);
       setContentType('audio');
 
       const normalizedTranscript = transcript?.trim();
+      console.log('标准化后的文本:', normalizedTranscript);
       if (normalizedTranscript) {
         setTranscribedText(normalizedTranscript);
         setContent(normalizedTranscript);
