@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Client } from '@gradio/client';
 import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
@@ -573,8 +573,7 @@ function WriteContent() {
   const [imageUrl, setImageUrl] = useState<string>('');
   const [audioUrl, setAudioUrl] = useState<string>('');
   const [transcribedText, setTranscribedText] = useState<string>('');
-  const [recognitionProgress, setRecognitionProgress] = useState<number>(0);
-  const [isRecognizing, setIsRecognizing] = useState<boolean>(false);
+  const recognitionAbortControllerRef = useRef<AbortController | null>(null);
 
   // 计算已解锁练习的工具（自由写作始终可选）
   const availablePracticeTools = writingTools.filter(tool => {
@@ -583,8 +582,34 @@ function WriteContent() {
     return !!level?.testPassed;
   });
 
+  const clearMediaState = () => {
+    setContentType('text');
+    setImageUrl('');
+    setAudioUrl('');
+    setTranscribedText('');
+  };
+
+  const handleCancelRecognition = () => {
+    console.log('→ 取消图片识别');
+    if (recognitionAbortControllerRef.current) {
+      recognitionAbortControllerRef.current.abort();
+      recognitionAbortControllerRef.current = null;
+    }
+    clearMediaState();
+    if (typeof showWarning === 'function') {
+      showWarning('已取消识别');
+    }
+  };
+
   // 处理图片上传或拍摄
   const handleImageCapture = async (base64Image: string) => {
+    if (recognitionAbortControllerRef.current) {
+      recognitionAbortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    recognitionAbortControllerRef.current = abortController;
+
     try {
       setImageUrl(base64Image);
       setAudioUrl('');
@@ -596,17 +621,38 @@ function WriteContent() {
         showWarning('正在识别手写作文，请稍候...');
       }
 
-      const response = await fetch(base64Image);
+      console.log('→ 开始图片识别');
+      const response = await fetch(base64Image, { signal: abortController.signal });
       const imageBlob = await response.blob();
+      console.log('✓ 图片加载完成，连接 OCR 服务...');
+
+      if (abortController.signal.aborted) {
+        throw new DOMException('识别已取消', 'AbortError');
+      }
+
+      const imageFile = new File([imageBlob], `handwriting-${Date.now()}.png`, {
+        type: imageBlob.type || 'image/png'
+      });
 
       const client = await Client.connect('axiilay/DeepSeek-OCR-Demo');
+      console.log('✓ OCR 服务已连接，开始识别...');
+
+      if (abortController.signal.aborted) {
+        throw new DOMException('识别已取消', 'AbortError');
+      }
+
       const result = await client.predict('/process_image', {
-        image: imageBlob,
+        image: imageFile,
         model_size: 'Tiny',
         task_type: 'Free OCR',
         is_eval_mode: true,
       });
 
+      if (abortController.signal.aborted) {
+        throw new DOMException('识别已取消', 'AbortError');
+      }
+
+      console.log('✓ OCR 识别完成，处理结果...');
       const data = Array.isArray((result as { data?: unknown }).data)
         ? ((result as { data: unknown[] }).data)
         : [];
@@ -618,20 +664,32 @@ function WriteContent() {
       if (recognizedText) {
         setTranscribedText(recognizedText);
         setContent(recognizedText);
+        console.log('✓ 识别成功，文本长度:', recognizedText.length);
         if (typeof showSuccess === 'function') {
           showSuccess('手写文字识别成功！');
         }
       } else {
+        console.warn('⚠ 识别完成但未获取到文本');
         if (typeof showWarning === 'function') {
           showWarning('识别完成，但未获取到文本，请检查图片清晰度');
         }
       }
     } catch (error) {
-      console.error('图片识别失败:', error);
-      if (typeof showError === 'function') {
-        showError('图片识别失败，请重试');
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.info('✓ 识别已被取消');
+        return;
       }
-      handleClearMedia();
+
+      console.error('✗ 图片识别失败:', error);
+      if (typeof showError === 'function') {
+        const errorMessage = error instanceof Error ? error.message : '未知错误';
+        showError(`图片识别失败: ${errorMessage}，请重试`);
+      }
+      clearMediaState();
+    } finally {
+      if (recognitionAbortControllerRef.current === abortController) {
+        recognitionAbortControllerRef.current = null;
+      }
     }
   };
 
@@ -666,10 +724,11 @@ function WriteContent() {
 
   // 清除媒体并恢复稿纸
   const handleClearMedia = () => {
-    setContentType('text');
-    setImageUrl('');
-    setAudioUrl('');
-    setTranscribedText('');
+    if (recognitionAbortControllerRef.current) {
+      recognitionAbortControllerRef.current.abort();
+      recognitionAbortControllerRef.current = null;
+    }
+    clearMediaState();
   };
 
   const handleContentUpdate = (value: string) => {
@@ -1385,6 +1444,7 @@ ${simplifiedHistory}
                       currentImage={imageUrl}
                       currentAudio={audioUrl}
                       onClear={handleClearMedia}
+                      onCancelRecognition={handleCancelRecognition}
                     />
                   </div>
                 </>
@@ -1396,6 +1456,7 @@ ${simplifiedHistory}
                     currentImage={contentType === 'image' ? imageUrl : ''}
                     currentAudio={contentType === 'audio' ? audioUrl : ''}
                     onClear={handleClearMedia}
+                    onCancelRecognition={handleCancelRecognition}
                   />
 
                   <div className="mt-6">
