@@ -963,6 +963,14 @@ ${recognizedText}
 
         const currentContent = content.trim();
         
+        console.log('🔍 语音识别调试信息:', {
+          稿纸内容长度: currentContent.length,
+          稿纸内容前50字: currentContent.substring(0, 50),
+          识别内容长度: normalizedTranscript.length,
+          识别内容前50字: normalizedTranscript.substring(0, 50),
+          识别内容后50字: normalizedTranscript.substring(Math.max(0, normalizedTranscript.length - 50)),
+        });
+        
         if (typeof showWarning === 'function') {
           showWarning('正在智能校正标点和错别字...');
         }
