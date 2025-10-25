@@ -213,6 +213,11 @@ export default function MediaInput({
         return;
       }
 
+      console.log('→ 请求麦克风权限...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      console.log('✓ 麦克风权限已获取');
+
       finalTranscriptRef.current = '';
       interimTranscriptRef.current = '';
       setInterimTranscript('');
@@ -226,14 +231,10 @@ export default function MediaInput({
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
 
-      const recognitionStarted = createDeferred();
-      recognitionEndDeferredRef.current = createDeferred();
-      isRecognitionActiveRef.current = false;
+      isRecognitionActiveRef.current = true;
 
       recognition.onstart = () => {
         console.log('✓ 语音识别已启动');
-        isRecognitionActiveRef.current = true;
-        recognitionStarted.resolve();
       };
 
       recognition.onresult = (event: any) => {
@@ -271,9 +272,13 @@ export default function MediaInput({
 
       recognition.onend = () => {
         console.log('• 语音识别结束');
-        const shouldRestart = isRecognitionActiveRef.current && recognitionRef.current === recognition;
 
-        if (shouldRestart) {
+        if (recognitionEndDeferredRef.current) {
+          recognitionEndDeferredRef.current.resolve();
+          recognitionEndDeferredRef.current = null;
+        }
+
+        if (isRecognitionActiveRef.current && recognitionRef.current === recognition) {
           console.log('→ 准备重启语音识别');
           setTimeout(() => {
             if (recognitionRef.current === recognition && isRecognitionActiveRef.current) {
@@ -283,37 +288,16 @@ export default function MediaInput({
               } catch (error) {
                 console.error('✗ 重新启动语音识别失败:', error);
                 isRecognitionActiveRef.current = false;
-                if (recognitionEndDeferredRef.current) {
-                  recognitionEndDeferredRef.current.resolve();
-                  recognitionEndDeferredRef.current = null;
-                }
               }
             }
           }, 150);
-        } else {
-          if (recognitionEndDeferredRef.current) {
-            recognitionEndDeferredRef.current.resolve();
-            recognitionEndDeferredRef.current = null;
-          }
-          if (recognitionRef.current === recognition) {
-            recognitionRef.current = null;
-          }
+        } else if (recognitionRef.current === recognition) {
+          recognitionRef.current = null;
         }
       };
 
-
       console.log('→ 启动语音识别...');
       recognition.start();
-
-      await Promise.race([
-        recognitionStarted.promise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('语音识别启动超时')), 5000))
-      ]);
-
-      console.log('→ 请求麦克风权限...');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      console.log('✓ 麦克风权限已获取');
 
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
@@ -346,7 +330,6 @@ export default function MediaInput({
         }
         recognitionRef.current = null;
       }
-      recognitionEndDeferredRef.current = null;
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach(track => track.stop());
         mediaStreamRef.current = null;
@@ -370,17 +353,19 @@ export default function MediaInput({
         console.log('→ 停止语音识别...');
         isRecognitionActiveRef.current = false;
         const recognitionInstance = recognitionRef.current;
-        const endDeferred = recognitionEndDeferredRef.current;
+        const endDeferred = createDeferred();
+        recognitionEndDeferredRef.current = endDeferred;
 
         try {
           recognitionInstance.stop();
         } catch (error) {
           console.error('停止语音识别时发生错误:', error);
+          recognitionEndDeferredRef.current = null;
         }
 
-        if (endDeferred) {
+        if (recognitionEndDeferredRef.current) {
           await Promise.race([
-            endDeferred.promise,
+            recognitionEndDeferredRef.current.promise,
             new Promise(resolve => setTimeout(resolve, 1000))
           ]);
         }
