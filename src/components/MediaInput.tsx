@@ -19,6 +19,17 @@ interface MediaInputProps {
 
 export type { AudioCaptureResult };
 
+const createDeferred = () => {
+  let resolve: () => void;
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  return {
+    promise,
+    resolve: resolve!
+  };
+};
+
 export default function MediaInput({
   onImageCapture,
   onAudioCapture,
@@ -43,6 +54,8 @@ export default function MediaInput({
   const completionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const wasProcessingRef = useRef(false);
   const recognitionRef = useRef<any>(null);
+  const isRecognitionActiveRef = useRef<boolean>(false);
+  const recognitionEndDeferredRef = useRef<ReturnType<typeof createDeferred> | null>(null);
   const finalTranscriptRef = useRef<string>('');
   const interimTranscriptRef = useRef<string>('');
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -160,18 +173,10 @@ export default function MediaInput({
         return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
+      finalTranscriptRef.current = '';
+      interimTranscriptRef.current = '';
+      setInterimTranscript('');
+      setFinalTranscriptDisplay('');
 
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
@@ -181,11 +186,18 @@ export default function MediaInput({
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
 
-      finalTranscriptRef.current = '';
-      setInterimTranscript('');
-      setFinalTranscriptDisplay('');
+      const recognitionStarted = createDeferred();
+      recognitionEndDeferredRef.current = createDeferred();
+      isRecognitionActiveRef.current = false;
+
+      recognition.onstart = () => {
+        console.log('✓ 语音识别已启动');
+        isRecognitionActiveRef.current = true;
+        recognitionStarted.resolve();
+      };
 
       recognition.onresult = (event: any) => {
+        console.log('✓ 接收到语音识别结果');
         let interimText = '';
         let finalText = finalTranscriptRef.current;
 
@@ -205,30 +217,77 @@ export default function MediaInput({
       };
 
       recognition.onerror = (event: any) => {
-        console.error('语音识别错误:', event.error);
-        if (event.error !== 'no-speech' && event.error !== 'aborted') {
-          alert(`语音识别出错: ${event.error}`);
+        console.error('✗ 语音识别错误:', event.error, event);
+        if (event.error === 'not-allowed') {
+          alert('请允许麦克风权限以使用语音识别功能');
+          isRecognitionActiveRef.current = false;
+        } else if (event.error === 'audio-capture') {
+          console.error('✗ 无法访问麦克风，可能被其他程序占用');
+          isRecognitionActiveRef.current = false;
+        } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          console.warn(`⚠ 语音识别遇到问题: ${event.error}`);
         }
       };
 
       recognition.onend = () => {
-        if (recognitionRef.current === recognition) {
+        console.log('• 语音识别结束');
+        const shouldRestart = isRecognitionActiveRef.current && recognitionRef.current === recognition;
+
+        if (shouldRestart) {
+          console.log('→ 准备重启语音识别');
           setTimeout(() => {
-            if (recognitionRef.current === recognition) {
+            if (recognitionRef.current === recognition && isRecognitionActiveRef.current) {
               try {
                 recognition.start();
+                console.log('↻ 语音识别已重启');
               } catch (error) {
-                console.error('重新启动语音识别失败:', error);
+                console.error('✗ 重新启动语音识别失败:', error);
+                isRecognitionActiveRef.current = false;
+                if (recognitionEndDeferredRef.current) {
+                  recognitionEndDeferredRef.current.resolve();
+                  recognitionEndDeferredRef.current = null;
+                }
               }
             }
-          }, 100);
+          }, 150);
+        } else {
+          if (recognitionEndDeferredRef.current) {
+            recognitionEndDeferredRef.current.resolve();
+            recognitionEndDeferredRef.current = null;
+          }
+          if (recognitionRef.current === recognition) {
+            recognitionRef.current = null;
+          }
+        }
+      };
+
+
+      console.log('→ 启动语音识别...');
+      recognition.start();
+
+      await Promise.race([
+        recognitionStarted.promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('语音识别启动超时')), 5000))
+      ]);
+
+      console.log('→ 请求麦克风权限...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      console.log('✓ 麦克风权限已获取');
+
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
         }
       };
 
       mediaRecorder.onstop = null;
-
       mediaRecorder.start();
-      recognition.start();
+      console.log('✓ 录音已开始');
       
       setIsRecording(true);
       setRecordingTime(0);
@@ -237,14 +296,30 @@ export default function MediaInput({
         setRecordingTime(prev => prev + 1);
       }, 1000);
     } catch (error) {
-      console.error('启动录音失败:', error);
-      alert('无法访问麦克风，请检查权限设置');
+      console.error('✗ 启动录音失败:', error);
+      isRecognitionActiveRef.current = false;
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.error('停止语音识别失败:', e);
+        }
+        recognitionRef.current = null;
+      }
+      recognitionEndDeferredRef.current = null;
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
+      }
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      alert(`无法启动语音录制: ${errorMessage}\n请检查麦克风权限设置`);
     }
   };
 
   const stopRecording = async () => {
     if (isRecording) {
       setIsRecording(false);
+      console.log('→ 停止录音...');
       
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
@@ -252,8 +327,27 @@ export default function MediaInput({
       }
 
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        console.log('→ 停止语音识别...');
+        isRecognitionActiveRef.current = false;
+        const recognitionInstance = recognitionRef.current;
+        const endDeferred = recognitionEndDeferredRef.current;
+
+        try {
+          recognitionInstance.stop();
+        } catch (error) {
+          console.error('停止语音识别时发生错误:', error);
+        }
+
+        if (endDeferred) {
+          await Promise.race([
+            endDeferred.promise,
+            new Promise(resolve => setTimeout(resolve, 1000))
+          ]);
+        }
+
+        recognitionEndDeferredRef.current = null;
         recognitionRef.current = null;
+        console.log('✓ 语音识别已停止');
       }
 
       if (mediaRecorderRef.current) {
