@@ -110,17 +110,55 @@ export default function MediaInput({
       return;
     }
 
-    setProgressMessage('手写作文识别中，请稍候...');
+    setProgressMessage('正在上传图片...');
     setIsProcessing(true);
+    setProgress(0);
+
+    // 模拟上传进度
+    const uploadInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 30) {
+          clearInterval(uploadInterval);
+          return prev;
+        }
+        return prev + Math.random() * 15 + 5;
+      });
+    }, 200);
+
     try {
+      // 等待上传进度达到30%
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       const base64Data = await readFileAsDataURL(file);
+
+      // 更新进度到50%
+      setProgress(50);
+      setProgressMessage('手写作文识别中，请稍候...');
+
+      // 模拟识别进度
+      const recognitionInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(recognitionInterval);
+            return prev;
+          }
+          return prev + Math.random() * 10 + 5;
+        });
+      }, 300);
+
       await onImageCapture(base64Data);
+
+      // 完成识别
+      setProgress(100);
+      setProgressMessage('识别完成！');
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
       console.error('上传图片失败:', error);
       alert('上传图片失败');
     } finally {
       setIsProcessing(false);
       setProgressMessage('');
+      setProgress(0);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -131,17 +169,55 @@ export default function MediaInput({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setProgressMessage('手写作文识别中，请稍候...');
+    setProgressMessage('正在处理拍照...');
     setIsProcessing(true);
+    setProgress(0);
+
+    // 模拟拍照处理进度
+    const processInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 40) {
+          clearInterval(processInterval);
+          return prev;
+        }
+        return prev + Math.random() * 20 + 10;
+      });
+    }, 150);
+
     try {
+      // 等待处理进度达到40%
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       const base64Data = await readFileAsDataURL(file);
+
+      // 更新进度到60%
+      setProgress(60);
+      setProgressMessage('手写作文识别中，请稍候...');
+
+      // 模拟识别进度
+      const recognitionInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(recognitionInterval);
+            return prev;
+          }
+          return prev + Math.random() * 8 + 4;
+        });
+      }, 250);
+
       await onImageCapture(base64Data);
+
+      // 完成识别
+      setProgress(100);
+      setProgressMessage('识别完成！');
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
       console.error('拍照失败:', error);
       alert('拍照失败');
     } finally {
       setIsProcessing(false);
       setProgressMessage('');
+      setProgress(0);
       if (cameraInputRef.current) {
         cameraInputRef.current.value = '';
       }
@@ -208,8 +284,41 @@ export default function MediaInput({
                 setProgressMessage('正在处理语音识别结果...');
 
                 try {
+                  // 设置初始进度
+                  setProgress(0);
+                  setProgressMessage('正在上传音频...');
+
+                  // 模拟上传进度
+                  const uploadInterval = setInterval(() => {
+                    setProgress(prev => {
+                      if (prev >= 40) {
+                        clearInterval(uploadInterval);
+                        return prev;
+                      }
+                      return prev + Math.random() * 15 + 5;
+                    });
+                  }, 200);
+
+                  // 等待上传进度达到40%
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+
                   // 移除 data:audio/wav;base64, 前缀以获取纯base64数据
                   const pureBase64Data = base64Data.split(',')[1] || base64Data;
+
+                  // 更新进度到60%
+                  setProgress(60);
+                  setProgressMessage('正在进行语音识别...');
+
+                  // 模拟识别进度
+                  const recognitionInterval = setInterval(() => {
+                    setProgress(prev => {
+                      if (prev >= 90) {
+                        clearInterval(recognitionInterval);
+                        return prev;
+                      }
+                      return prev + Math.random() * 8 + 4;
+                    });
+                  }, 300);
 
                   // 使用Pollinations API进行语音识别
                   const payload = {
@@ -244,13 +353,21 @@ export default function MediaInput({
                   const result = await apiResponse.json();
                   const transcript = result.choices?.[0]?.message?.content?.trim() || '';
 
+                  // 完成识别
+                  setProgress(100);
+                  setProgressMessage('识别完成！');
+
                   await onAudioCapture({
                     audioData: base64Data,
                     transcript: transcript
                   });
+
+                  // 短暂显示完成消息
+                  await new Promise(resolve => setTimeout(resolve, 500));
                 } finally {
                   setIsProcessing(false);
                   setProgressMessage('');
+                  setProgress(0);
                   setFinalTranscriptDisplay('');
                 }
 
