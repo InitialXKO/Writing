@@ -601,6 +601,50 @@ function WriteContent() {
     }
   };
 
+  // 使用 Pollinations Vision API 进行 OCR（降级方案）
+  const recognizeWithPollinations = async (base64Image: string, signal: AbortSignal): Promise<string> => {
+    console.log('→ 尝试使用 Pollinations Vision API 进行 OCR...');
+    const response = await fetch('/api/pollinations/vision', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        imageDataUrl: base64Image,
+        prompt: '请识别这张图片中的所有手写文字，直接输出识别的文字内容，不要添加任何解释或格式。',
+        maxTokens: 800,
+        timeoutMs: 45000,
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: '未知错误' }));
+      throw new Error(error.error || `Pollinations Vision API 请求失败: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const rawText = (data.description || '').trim();
+    
+    if (!rawText) {
+      throw new Error('Pollinations Vision API 未返回识别结果');
+    }
+
+    const normalizedText = rawText
+      .replace(/```[\s\S]*?```/g, block => block.replace(/```/g, '').trim())
+      .replace(/^[#>*\-\s]+/gm, line => line.replace(/^[#>*\-\s]+/, ''))
+      .replace(/^(?:OCR|识别|内容)(?:结果)?[:：]\s*/gi, '')
+      .replace(/\r/g, '')
+      .trim();
+
+    if (!normalizedText) {
+      throw new Error('Pollinations Vision API 返回的内容为空');
+    }
+
+    console.log('✓ Pollinations Vision API 识别成功，文本长度:', normalizedText.length);
+    return normalizedText;
+  };
+
   // 处理图片上传或拍摄
   const handleImageCapture = async (base64Image: string) => {
     if (recognitionAbortControllerRef.current) {
@@ -609,6 +653,9 @@ function WriteContent() {
 
     const abortController = new AbortController();
     recognitionAbortControllerRef.current = abortController;
+
+    const GRADIO_TIMEOUT = 30000;
+    let gradioTimeoutHandle: NodeJS.Timeout | null = null;
 
     try {
       setImageUrl(base64Image);
@@ -621,7 +668,7 @@ function WriteContent() {
         showWarning('正在识别手写作文，请稍候...');
       }
 
-      console.log('→ 开始图片识别');
+      console.log('→ 开始图片识别（优先使用 Gradio OCR）');
       const response = await fetch(base64Image, { signal: abortController.signal });
       const imageBlob = await response.blob();
       console.log('✓ 图片加载完成，连接 OCR 服务...');
@@ -634,39 +681,89 @@ function WriteContent() {
         type: imageBlob.type || 'image/png'
       });
 
-      const client = await Client.connect('axiilay/DeepSeek-OCR-Demo');
-      console.log('✓ OCR 服务已连接，开始识别...');
+      let recognizedText = '';
+      let usedFallback = false;
 
-      if (abortController.signal.aborted) {
-        throw new DOMException('识别已取消', 'AbortError');
+      try {
+        const client = await Client.connect('axiilay/DeepSeek-OCR-Demo');
+        console.log('✓ OCR 服务已连接，开始识别...');
+
+        if (abortController.signal.aborted) {
+          throw new DOMException('识别已取消', 'AbortError');
+        }
+
+        const gradioPromise = client.predict('/process_image', {
+          image: imageFile,
+          model_size: 'Tiny',
+          task_type: 'Free OCR',
+          is_eval_mode: true,
+        });
+
+        const timeoutPromise = new Promise((_, reject) => {
+          gradioTimeoutHandle = setTimeout(() => {
+            console.warn('⚠ Gradio OCR 超时，准备降级到 Pollinations Vision API');
+            reject(new Error('Gradio OCR 超时'));
+          }, GRADIO_TIMEOUT);
+        });
+
+        const result = await Promise.race([gradioPromise, timeoutPromise]);
+
+        if (gradioTimeoutHandle) {
+          clearTimeout(gradioTimeoutHandle);
+          gradioTimeoutHandle = null;
+        }
+
+        if (abortController.signal.aborted) {
+          throw new DOMException('识别已取消', 'AbortError');
+        }
+
+        console.log('✓ Gradio OCR 识别完成，处理结果...');
+        const data = Array.isArray((result as { data?: unknown }).data)
+          ? ((result as { data: unknown[] }).data)
+          : [];
+
+        const markdownText = typeof data[1] === 'string' ? data[1] : '';
+        const plainText = typeof data[2] === 'string' ? data[2] : '';
+        recognizedText = (plainText || markdownText || '').trim();
+
+        if (!recognizedText) {
+          throw new Error('Gradio OCR 未返回识别结果');
+        }
+
+        console.log('✓ Gradio OCR 识别成功，文本长度:', recognizedText.length);
+      } catch (gradioError) {
+        if (gradioTimeoutHandle) {
+          clearTimeout(gradioTimeoutHandle);
+          gradioTimeoutHandle = null;
+        }
+
+        if (gradioError instanceof DOMException && gradioError.name === 'AbortError') {
+          throw gradioError;
+        }
+
+        console.warn('⚠ Gradio OCR 失败，降级到 Pollinations Vision API:', gradioError);
+        
+        if (typeof showWarning === 'function') {
+          showWarning('主识别服务失败，正在尝试备用识别方案...');
+        }
+
+        usedFallback = true;
+
+        try {
+          recognizedText = await recognizeWithPollinations(base64Image, abortController.signal);
+        } catch (pollinationsError) {
+          console.error('✗ Pollinations Vision API 也失败了:', pollinationsError);
+          throw new Error(`所有识别方案都失败了。主服务错误: ${gradioError instanceof Error ? gradioError.message : '未知错误'}，备用服务错误: ${pollinationsError instanceof Error ? pollinationsError.message : '未知错误'}`);
+        }
       }
-
-      const result = await client.predict('/process_image', {
-        image: imageFile,
-        model_size: 'Tiny',
-        task_type: 'Free OCR',
-        is_eval_mode: true,
-      });
-
-      if (abortController.signal.aborted) {
-        throw new DOMException('识别已取消', 'AbortError');
-      }
-
-      console.log('✓ OCR 识别完成，处理结果...');
-      const data = Array.isArray((result as { data?: unknown }).data)
-        ? ((result as { data: unknown[] }).data)
-        : [];
-
-      const markdownText = typeof data[1] === 'string' ? data[1] : '';
-      const plainText = typeof data[2] === 'string' ? data[2] : '';
-      const recognizedText = (plainText || markdownText || '').trim();
 
       if (recognizedText) {
         setTranscribedText(recognizedText);
         setContent(recognizedText);
         console.log('✓ 识别成功，文本长度:', recognizedText.length);
         if (typeof showSuccess === 'function') {
-          showSuccess('手写文字识别成功！');
+          const method = usedFallback ? '（使用备用识别方案）' : '';
+          showSuccess(`手写文字识别成功${method}！`);
         }
       } else {
         console.warn('⚠ 识别完成但未获取到文本');
@@ -675,6 +772,10 @@ function WriteContent() {
         }
       }
     } catch (error) {
+      if (gradioTimeoutHandle) {
+        clearTimeout(gradioTimeoutHandle);
+      }
+
       if (error instanceof DOMException && error.name === 'AbortError') {
         console.info('✓ 识别已被取消');
         return;
@@ -683,10 +784,13 @@ function WriteContent() {
       console.error('✗ 图片识别失败:', error);
       if (typeof showError === 'function') {
         const errorMessage = error instanceof Error ? error.message : '未知错误';
-        showError(`图片识别失败: ${errorMessage}，请重试`);
+        showError(`图片识别失败: ${errorMessage}`);
       }
       clearMediaState();
     } finally {
+      if (gradioTimeoutHandle) {
+        clearTimeout(gradioTimeoutHandle);
+      }
       if (recognitionAbortControllerRef.current === abortController) {
         recognitionAbortControllerRef.current = null;
       }
