@@ -16,6 +16,7 @@ interface MediaInputProps {
   onClear: () => void;
   onCancelRecognition?: () => void;
   disabled?: boolean;
+  isRecognizing?: boolean;
 }
 
 export type { AudioCaptureResult };
@@ -38,7 +39,8 @@ export default function MediaInput({
   currentAudio,
   onClear,
   onCancelRecognition,
-  disabled = false
+  disabled = false,
+  isRecognizing = false
 }: MediaInputProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -63,7 +65,9 @@ export default function MediaInput({
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
-    if (isProcessing) {
+    const isActive = isProcessing || isRecognizing;
+
+    if (isActive) {
       wasProcessingRef.current = true;
       if (completionTimerRef.current) {
         clearTimeout(completionTimerRef.current);
@@ -108,7 +112,7 @@ export default function MediaInput({
         completionTimerRef.current = null;
       }
     };
-  }, [isProcessing]);
+  }, [isProcessing, isRecognizing]);
 
   const resetProcessingState = () => {
     if (progressTimerRef.current) {
@@ -160,9 +164,8 @@ export default function MediaInput({
       return;
     }
 
-    setProgressMessage('手写作文识别中，请稍候...');
-    setIsProcessing(true);
     try {
+      setProgressMessage('手写作文识别中，请稍候...');
       const base64Data = await readFileAsDataURL(file);
       await onImageCapture(base64Data);
     } catch (error) {
@@ -173,8 +176,6 @@ export default function MediaInput({
         alert('上传图片失败');
       }
     } finally {
-      setIsProcessing(false);
-      setProgressMessage('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -185,9 +186,8 @@ export default function MediaInput({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setProgressMessage('手写作文识别中，请稍候...');
-    setIsProcessing(true);
     try {
+      setProgressMessage('手写作文识别中，请稍候...');
       const base64Data = await readFileAsDataURL(file);
       await onImageCapture(base64Data);
     } catch (error) {
@@ -198,8 +198,6 @@ export default function MediaInput({
         alert('拍照失败');
       }
     } finally {
-      setIsProcessing(false);
-      setProgressMessage('');
       if (cameraInputRef.current) {
         cameraInputRef.current.value = '';
       }
@@ -452,14 +450,15 @@ export default function MediaInput({
   };
 
   const progressPercentage = Math.min(Math.round(progress), 100);
+  const showProgress = isRecognizing || isProcessing || progress > 0;
 
-  if (isProcessing || progress > 0) {
+  if (showProgress) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-10 border-2 border-morandi-gray-300 rounded-xl bg-white text-center">
         <Loader2 className="w-12 h-12 text-morandi-blue-500 animate-spin" />
         <div>
           <p className="text-morandi-gray-700 font-medium">
-            {progressMessage || '正在处理中，请稍候...'}
+            {progressMessage || '正在识别手写作文，请稍候...'}
           </p>
           <p className="text-xs text-morandi-gray-500 mt-1">如果识别时间较长，请稍候片刻</p>
         </div>
@@ -470,7 +469,7 @@ export default function MediaInput({
           />
         </div>
         <p className="text-xs text-morandi-gray-500 mb-2">{progressPercentage}%</p>
-        {onCancelRecognition && isProcessing && (
+        {onCancelRecognition && isRecognizing && (
           <button
             onClick={handleCancelProcessing}
             className="px-6 py-2 bg-morandi-red-500 hover:bg-morandi-red-600 text-white font-medium rounded-lg transition-colors shadow-md hover:shadow-lg"
@@ -533,7 +532,7 @@ export default function MediaInput({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <button
           onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isRecording || isProcessing}
+          disabled={disabled || isRecording || isProcessing || isRecognizing}
           className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-morandi-gray-300 rounded-xl hover:border-morandi-blue-500 hover:bg-morandi-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Upload className="w-8 h-8 text-morandi-blue-600" />
@@ -543,7 +542,7 @@ export default function MediaInput({
 
         <button
           onClick={() => cameraInputRef.current?.click()}
-          disabled={disabled || isRecording || isProcessing}
+          disabled={disabled || isRecording || isProcessing || isRecognizing}
           className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-morandi-gray-300 rounded-xl hover:border-morandi-green-500 hover:bg-morandi-green-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Camera className="w-8 h-8 text-morandi-green-600" />
@@ -554,7 +553,7 @@ export default function MediaInput({
         {!isRecording ? (
           <button
             onClick={startRecording}
-            disabled={disabled || isProcessing}
+            disabled={disabled || isProcessing || isRecognizing}
             className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-morandi-gray-300 rounded-xl hover:border-morandi-pink-500 hover:bg-morandi-pink-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Mic className="w-8 h-8 text-morandi-pink-600" />

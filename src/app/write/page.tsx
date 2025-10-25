@@ -573,6 +573,7 @@ function WriteContent() {
   const [imageUrl, setImageUrl] = useState<string>('');
   const [audioUrl, setAudioUrl] = useState<string>('');
   const [transcribedText, setTranscribedText] = useState<string>('');
+  const [isRecognizing, setIsRecognizing] = useState<boolean>(false);
   const recognitionAbortControllerRef = useRef<AbortController | null>(null);
 
   // 计算已解锁练习的工具（自由写作始终可选）
@@ -587,6 +588,7 @@ function WriteContent() {
     setImageUrl('');
     setAudioUrl('');
     setTranscribedText('');
+    setIsRecognizing(false);
   };
 
   const handleCancelRecognition = () => {
@@ -595,6 +597,7 @@ function WriteContent() {
       recognitionAbortControllerRef.current.abort();
       recognitionAbortControllerRef.current = null;
     }
+    setIsRecognizing(false);
     clearMediaState();
     if (typeof showWarning === 'function') {
       showWarning('已取消识别');
@@ -664,6 +667,7 @@ function WriteContent() {
       setTranscribedText('');
       setContent('');
 
+      setIsRecognizing(true);
       if (typeof showWarning === 'function') {
         showWarning('正在识别手写作文，请稍候...');
       }
@@ -794,6 +798,7 @@ function WriteContent() {
       if (recognitionAbortControllerRef.current === abortController) {
         recognitionAbortControllerRef.current = null;
       }
+      setIsRecognizing(false);
     }
   };
 
@@ -1549,6 +1554,7 @@ ${simplifiedHistory}
                       currentAudio={audioUrl}
                       onClear={handleClearMedia}
                       onCancelRecognition={handleCancelRecognition}
+                      isRecognizing={isRecognizing}
                     />
                   </div>
                 </>
@@ -1561,6 +1567,7 @@ ${simplifiedHistory}
                     currentAudio={contentType === 'audio' ? audioUrl : ''}
                     onClear={handleClearMedia}
                     onCancelRecognition={handleCancelRecognition}
+                    isRecognizing={isRecognizing}
                   />
 
                   <div className="mt-6">
