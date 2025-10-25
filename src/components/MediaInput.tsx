@@ -211,6 +211,20 @@ export default function MediaInput({
         }
       };
 
+      recognition.onend = () => {
+        if (recognitionRef.current === recognition) {
+          setTimeout(() => {
+            if (recognitionRef.current === recognition) {
+              try {
+                recognition.start();
+              } catch (error) {
+                console.error('重新启动语音识别失败:', error);
+              }
+            }
+          }, 100);
+        }
+      };
+
       mediaRecorder.onstop = null;
 
       mediaRecorder.start();
