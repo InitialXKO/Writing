@@ -15,6 +15,10 @@ interface MediaInputProps {
   currentAudio?: string;
   onClear: () => void;
   disabled?: boolean;
+  // 进度状态回调函数
+  onProgressStart?: () => void;
+  onProgressUpdate?: (progress: number, message: string) => void;
+  onProgressComplete?: (success: boolean, message?: string) => void;
 }
 
 export type { AudioCaptureResult };
@@ -25,7 +29,10 @@ export default function MediaInput({
   currentImage,
   currentAudio,
   onClear,
-  disabled = false
+  disabled = false,
+  onProgressStart,
+  onProgressUpdate,
+  onProgressComplete
 }: MediaInputProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -34,6 +41,7 @@ export default function MediaInput({
   const [progressMessage, setProgressMessage] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [finalTranscriptDisplay, setFinalTranscriptDisplay] = useState('');
+  const [showCompletion, setShowCompletion] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -45,6 +53,7 @@ export default function MediaInput({
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
+    console.log('isProcessing changed:', isProcessing);
     if (isProcessing) {
       wasProcessingRef.current = true;
       if (completionTimerRef.current) {
@@ -53,30 +62,12 @@ export default function MediaInput({
       if (progressTimerRef.current) {
         clearInterval(progressTimerRef.current);
       }
-      setProgress(0);
-      progressTimerRef.current = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 92) {
-            return prev;
-          }
-          const next = prev + Math.random() * 12 + 6;
-          return next >= 92 ? 92 : next;
-        });
-      }, 450);
+      // 不再自动重置进度，让处理逻辑自己控制
+      // setProgress(0);
     } else {
       if (progressTimerRef.current) {
         clearInterval(progressTimerRef.current);
         progressTimerRef.current = null;
-      }
-
-      if (wasProcessingRef.current) {
-        setProgress(100);
-        completionTimerRef.current = setTimeout(() => {
-          setProgress(0);
-          wasProcessingRef.current = false;
-        }, 500);
-      } else {
-        setProgress(0);
       }
     }
 
@@ -91,6 +82,20 @@ export default function MediaInput({
       }
     };
   }, [isProcessing]);
+
+  // 添加调试日志来追踪关键状态变化
+  useEffect(() => {
+    console.log('Progress changed:', progress);
+  }, [progress]);
+
+  useEffect(() => {
+    console.log('Show completion changed:', showCompletion);
+  }, [showCompletion]);
+
+  useEffect(() => {
+    console.log('Current image changed:', currentImage ? 'has image' : 'no image');
+  }, [currentImage]);
+
 
   const readFileAsDataURL = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -170,8 +175,11 @@ export default function MediaInput({
     }
 
     setIsProcessing(true);
+    if (onProgressStart) onProgressStart();
     setProgressMessage('正在上传图片...');
+    if (onProgressUpdate) onProgressUpdate(10, '正在上传图片...');
     setProgress(10);
+    setShowCompletion(false);
 
     // 模拟上传进度
     const uploadInterval = setInterval(() => {
@@ -180,7 +188,9 @@ export default function MediaInput({
           clearInterval(uploadInterval);
           return prev;
         }
-        return prev + Math.random() * 15 + 5;
+        const newProgress = prev + Math.random() * 15 + 5;
+        if (onProgressUpdate) onProgressUpdate(newProgress, '正在上传图片...');
+        return newProgress;
       });
     }, 200);
 
@@ -190,6 +200,7 @@ export default function MediaInput({
 
       // 下采样图片
       setProgressMessage('正在优化图片...');
+      if (onProgressUpdate) onProgressUpdate(40, '正在优化图片...');
       const resizedBlob = await resizeImage(file);
       const resizedFile = new File([resizedBlob], file.name, { type: 'image/jpeg' });
 
@@ -197,6 +208,7 @@ export default function MediaInput({
 
       // 更新进度到60%
       setProgress(60);
+      if (onProgressUpdate) onProgressUpdate(60, '正在进行图片识别...');
       setProgressMessage('正在进行图片识别...');
 
       // 模拟识别进度
@@ -206,28 +218,30 @@ export default function MediaInput({
             clearInterval(recognitionInterval);
             return prev;
           }
-          return prev + Math.random() * 8 + 4;
+          const newProgress = prev + Math.random() * 8 + 4;
+          if (onProgressUpdate) onProgressUpdate(newProgress, '正在进行图片识别...');
+          return newProgress;
         });
       }, 300);
 
       // 添加调试信息
       console.log('发送图片到Pollinations API进行OCR识别');
+
+      // 模拟处理进度到90%
+      setProgress(90);
+      if (onProgressUpdate) onProgressUpdate(90, '正在处理...');
+      setProgressMessage('正在处理...');
+
+      // 调用回调函数进行AI识别，等待解析完成
       await onImageCapture(base64Data);
 
-      // 完成识别
-      setProgress(100);
-      setProgressMessage('识别完成！');
-
-      // 短暂显示完成消息
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // 在结果处理完成后重置状态
+      // 在AI识别完成后，通知父组件处理已完成
       setIsProcessing(false);
-      setProgressMessage('');
-      setProgress(0);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      setProgress(100);
+      if (onProgressUpdate) onProgressUpdate(100, '处理完成');
+      setProgressMessage('处理完成');
+      setShowCompletion(true);
+      if (onProgressComplete) onProgressComplete(true, '处理完成');
     } catch (error) {
       console.error('上传图片失败:', error);
       alert('上传图片失败');
@@ -236,6 +250,8 @@ export default function MediaInput({
       setIsProcessing(false);
       setProgressMessage('');
       setProgress(0);
+      setShowCompletion(false);
+      if (onProgressComplete) onProgressComplete(false, '上传图片失败');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -247,8 +263,11 @@ export default function MediaInput({
     if (!file) return;
 
     setIsProcessing(true);
+    if (onProgressStart) onProgressStart();
     setProgressMessage('正在处理拍照...');
+    if (onProgressUpdate) onProgressUpdate(10, '正在处理拍照...');
     setProgress(10);
+    setShowCompletion(false);
 
     // 模拟拍照处理进度
     const processInterval = setInterval(() => {
@@ -257,7 +276,9 @@ export default function MediaInput({
           clearInterval(processInterval);
           return prev;
         }
-        return prev + Math.random() * 15 + 5;
+        const newProgress = prev + Math.random() * 15 + 5;
+        if (onProgressUpdate) onProgressUpdate(newProgress, '正在处理拍照...');
+        return newProgress;
       });
     }, 200);
 
@@ -267,6 +288,7 @@ export default function MediaInput({
 
       // 下采样图片
       setProgressMessage('正在优化图片...');
+      if (onProgressUpdate) onProgressUpdate(40, '正在优化图片...');
       const resizedBlob = await resizeImage(file);
       const resizedFile = new File([resizedBlob], file.name, { type: 'image/jpeg' });
 
@@ -274,6 +296,7 @@ export default function MediaInput({
 
       // 更新进度到60%
       setProgress(60);
+      if (onProgressUpdate) onProgressUpdate(60, '正在进行图片识别...');
       setProgressMessage('正在进行图片识别...');
 
       // 模拟识别进度
@@ -283,26 +306,27 @@ export default function MediaInput({
             clearInterval(recognitionInterval);
             return prev;
           }
-          return prev + Math.random() * 8 + 4;
+          const newProgress = prev + Math.random() * 8 + 4;
+          if (onProgressUpdate) onProgressUpdate(newProgress, '正在进行图片识别...');
+          return newProgress;
         });
       }, 300);
 
+      // 模拟处理进度到90%
+      setProgress(90);
+      if (onProgressUpdate) onProgressUpdate(90, '正在处理...');
+      setProgressMessage('正在处理...');
+
+      // 调用回调函数进行AI识别，等待解析完成
       await onImageCapture(base64Data);
 
-      // 完成识别
-      setProgress(100);
-      setProgressMessage('识别完成！');
-
-      // 短暂显示完成消息
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // 在结果处理完成后重置状态
+      // 在AI识别完成后，通知父组件处理已完成
       setIsProcessing(false);
-      setProgressMessage('');
-      setProgress(0);
-      if (cameraInputRef.current) {
-        cameraInputRef.current.value = '';
-      }
+      setProgress(100);
+      if (onProgressUpdate) onProgressUpdate(100, '处理完成');
+      setProgressMessage('处理完成');
+      setShowCompletion(true);
+      if (onProgressComplete) onProgressComplete(true, '处理完成');
     } catch (error) {
       console.error('拍照失败:', error);
       alert('拍照失败');
@@ -311,6 +335,8 @@ export default function MediaInput({
       setIsProcessing(false);
       setProgressMessage('');
       setProgress(0);
+      setShowCompletion(false);
+      if (onProgressComplete) onProgressComplete(false, '拍照失败');
       if (cameraInputRef.current) {
         cameraInputRef.current.value = '';
       }
@@ -516,7 +542,7 @@ export default function MediaInput({
                       messages: [{
                         role: 'user',
                         content: [
-                          { type: 'text', text: '请准确转录这段音频中的中文内容，保持原始语气和用词，不要进行润色、评论或分析：' },
+                          { type: 'text', text: '请转录这段音频中的中文内容。请尽力识别所有可听清的部分，对于模糊或难以辨认的部分，请尽量推测正确内容。请保持原始语气和用词，不要进行润色、评论或分析，只输出识别结果：' },
                           {
                             type: 'input_audio',
                             input_audio: {
@@ -549,23 +575,24 @@ export default function MediaInput({
                     const transcript = result.choices?.[0]?.message?.content?.trim() || '';
                     console.log('识别文本:', transcript);
 
+                    // 模拟处理进度到90%
+                    setProgress(90);
+                    setProgressMessage('正在处理...');
+
+                    // 调用回调函数进行AI识别，等待解析完成
                     await onAudioCapture({
                       audioData: base64Data,
                       transcript: transcript
                     });
 
-                    // 完成识别
+                    // AI响应解析完成，设置进度为100%
                     setProgress(100);
                     setProgressMessage('识别完成！');
+                    setShowCompletion(true);
+                    // 不调用setIsProcessing(false)，保持处理状态以便进度条模态框继续显示
 
-                    // 短暂显示完成消息
-                    await new Promise(resolve => setTimeout(resolve, 500));
-
-                    // 在结果处理完成后重置状态
-                    setIsProcessing(false);
-                    setProgressMessage('');
-                    setProgress(0);
-                    setFinalTranscriptDisplay('');
+                    // 保持进度条显示状态，不自动重置
+                    // 用户可以通过点击模态框中的确认按钮来重置状态
                   } catch (error) {
                     console.error('语音识别处理失败:', error);
                     alert('语音识别失败，请重试');
@@ -575,6 +602,7 @@ export default function MediaInput({
                     setProgressMessage('');
                     setProgress(0);
                     setFinalTranscriptDisplay('');
+                    setShowCompletion(false);
                   }
 
                   resolve();
@@ -587,6 +615,8 @@ export default function MediaInput({
                 setIsProcessing(false);
                 setProgressMessage('');
                 setProgress(0);
+                setFinalTranscriptDisplay('');
+                setShowCompletion(false);
                 resolve();
               }
 
@@ -614,153 +644,142 @@ export default function MediaInput({
 
   const progressPercentage = Math.min(Math.round(progress), 100);
 
-  if (isProcessing || progress > 0) {
+  // 如果有图片且不在处理过程中，显示图片
+  // 如果正在处理，优先显示进度条模态框
+  if (currentImage && !isProcessing && progress === 0 && !showCompletion) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 p-10 border-2 border-morandi-gray-300 rounded-xl bg-white text-center">
-        <Loader2 className="w-12 h-12 text-morandi-blue-500 animate-spin" />
-        <div>
-          <p className="text-morandi-gray-700 font-medium">
-            {progressMessage || '正在处理中，请稍候...'}
-          </p>
-          <p className="text-xs text-morandi-gray-500 mt-1">如果识别时间较长，请稍候片刻</p>
-        </div>
-        <div className="w-full max-w-xs h-2 bg-morandi-gray-200 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-morandi-blue-500 transition-all duration-300"
-            style={{ width: `${progressPercentage}%` }}
+      <div className="space-y-4">
+        <div className="relative border-2 border-morandi-gray-300 rounded-xl p-4 bg-white">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-morandi-gray-700">手写作文图片</h3>
+            <button
+              onClick={onClear}
+              disabled={disabled}
+              className="p-2 text-morandi-gray-600 hover:text-morandi-red-600 hover:bg-morandi-red-50 rounded-lg transition-colors disabled:opacity-50"
+              title="清除图片并恢复稿纸"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <img
+            src={currentImage}
+            alt="手写作文"
+            className="w-full h-auto max-h-[600px] object-contain rounded-lg shadow-md"
           />
         </div>
-        <p className="text-xs text-morandi-gray-500">{progressPercentage}%</p>
       </div>
     );
   }
 
-  if (currentImage) {
+  // 如果有音频且不在处理过程中，显示音频
+  // 如果正在处理，优先显示进度条模态框
+  if (currentAudio && !isProcessing && progress === 0 && !showCompletion) {
     return (
-      <div className="relative border-2 border-morandi-gray-300 rounded-xl p-4 bg-white">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-morandi-gray-700">手写作文图片</h3>
-          <button
-            onClick={onClear}
-            disabled={disabled}
-            className="p-2 text-morandi-gray-600 hover:text-morandi-red-600 hover:bg-morandi-red-50 rounded-lg transition-colors disabled:opacity-50"
-            title="清除图片并恢复稿纸"
-          >
-            <X className="w-5 h-5" />
-          </button>
+      <div className="space-y-4">
+        <div className="relative border-2 border-morandi-gray-300 rounded-xl p-4 bg-white">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-morandi-gray-700">语音作文</h3>
+            <button
+              onClick={onClear}
+              disabled={disabled}
+              className="p-2 text-morandi-gray-600 hover:text-morandi-red-600 hover:bg-morandi-red-50 rounded-lg transition-colors disabled:opacity-50"
+              title="清除音频并恢复稿纸"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <audio
+            src={currentAudio}
+            controls
+            className="w-full"
+          />
         </div>
-        <img
-          src={currentImage}
-          alt="手写作文"
-          className="w-full h-auto max-h-[600px] object-contain rounded-lg shadow-md"
-        />
-      </div>
-    );
-  }
-
-  if (currentAudio) {
-    return (
-      <div className="relative border-2 border-morandi-gray-300 rounded-xl p-4 bg-white">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-morandi-gray-700">语音作文</h3>
-          <button
-            onClick={onClear}
-            disabled={disabled}
-            className="p-2 text-morandi-gray-600 hover:text-morandi-red-600 hover:bg-morandi-red-50 rounded-lg transition-colors disabled:opacity-50"
-            title="清除音频并恢复稿纸"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <audio
-          src={currentAudio}
-          controls
-          className="w-full"
-        />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isRecording}
-          className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-morandi-gray-300 rounded-xl hover:border-morandi-blue-500 hover:bg-morandi-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Upload className="w-8 h-8 text-morandi-blue-600" />
-          <span className="text-sm font-medium text-morandi-gray-700">上传图片</span>
-          <span className="text-xs text-morandi-gray-500">支持 JPG、PNG 等格式</span>
-        </button>
-
-        <button
-          onClick={() => cameraInputRef.current?.click()}
-          disabled={disabled || isRecording}
-          className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-morandi-gray-300 rounded-xl hover:border-morandi-green-500 hover:bg-morandi-green-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Camera className="w-8 h-8 text-morandi-green-600" />
-          <span className="text-sm font-medium text-morandi-gray-700">拍摄照片</span>
-          <span className="text-xs text-morandi-gray-500">使用相机拍摄手写作文</span>
-        </button>
-
-        {!isRecording ? (
+    <>
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <button
-            onClick={startRecording}
-            disabled={disabled}
-            className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-morandi-gray-300 rounded-xl hover:border-morandi-pink-500 hover:bg-morandi-pink-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled || isRecording}
+            className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-morandi-gray-300 rounded-xl hover:border-morandi-blue-500 hover:bg-morandi-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Mic className="w-8 h-8 text-morandi-pink-600" />
-            <span className="text-sm font-medium text-morandi-gray-700">语音录制</span>
-            <span className="text-xs text-morandi-gray-500">录制你的作文朗读</span>
+            <Upload className="w-8 h-8 text-morandi-blue-600" />
+            <span className="text-sm font-medium text-morandi-gray-700">上传图片</span>
+            <span className="text-xs text-morandi-gray-500">支持 JPG、PNG 等格式</span>
           </button>
-        ) : (
-          <button
-            onClick={stopRecording}
-            className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-morandi-pink-500 bg-morandi-pink-50 rounded-xl animate-pulse"
-          >
-            <div className="w-8 h-8 bg-morandi-pink-600 rounded-full flex items-center justify-center">
-              <div className="w-4 h-4 bg-white rounded-sm"></div>
-            </div>
-            <span className="text-sm font-medium text-morandi-pink-700">停止录音</span>
-            <span className="text-xs text-morandi-pink-600 font-mono">{formatTime(recordingTime)}</span>
-          </button>
-        )}
-      </div>
 
-      {isRecording && (finalTranscriptDisplay || interimTranscript) && (
-        <div className="mt-4 p-4 bg-morandi-pink-50 border border-morandi-pink-200 rounded-xl">
-          <h4 className="text-sm font-medium text-morandi-pink-800 mb-2 flex items-center gap-2">
-            <Mic className="w-4 h-4" />
-            实时识别
-          </h4>
-          <div className="text-sm text-morandi-gray-700 space-y-1">
-            {finalTranscriptDisplay && (
-              <p className="font-medium">{finalTranscriptDisplay}</p>
-            )}
-            {interimTranscript && (
-              <p className="text-morandi-gray-500 italic">{interimTranscript}</p>
-            )}
-          </div>
+          <button
+            onClick={() => cameraInputRef.current?.click()}
+            disabled={disabled || isRecording}
+            className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-morandi-gray-300 rounded-xl hover:border-morandi-green-500 hover:bg-morandi-green-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Camera className="w-8 h-8 text-morandi-green-600" />
+            <span className="text-sm font-medium text-morandi-gray-700">拍摄照片</span>
+            <span className="text-xs text-morandi-gray-500">使用相机拍摄手写作文</span>
+          </button>
+
+          {!isRecording ? (
+            <button
+              onClick={startRecording}
+              disabled={disabled}
+              className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-morandi-gray-300 rounded-xl hover:border-morandi-pink-500 hover:bg-morandi-pink-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Mic className="w-8 h-8 text-morandi-pink-600" />
+              <span className="text-sm font-medium text-morandi-gray-700">语音录制</span>
+              <span className="text-xs text-morandi-gray-500">录制你的作文朗读</span>
+            </button>
+          ) : (
+            <button
+              onClick={stopRecording}
+              className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-morandi-pink-500 bg-morandi-pink-50 rounded-xl animate-pulse"
+            >
+              <div className="w-8 h-8 bg-morandi-pink-600 rounded-full flex items-center justify-center">
+                <div className="w-4 h-4 bg-white rounded-sm"></div>
+              </div>
+              <span className="text-sm font-medium text-morandi-pink-700">停止录音</span>
+              <span className="text-xs text-morandi-pink-600 font-mono">{formatTime(recordingTime)}</span>
+            </button>
+          )}
         </div>
-      )}
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileUpload}
-        className="hidden"
-      />
+        {isRecording && (finalTranscriptDisplay || interimTranscript) && (
+          <div className="mt-4 p-4 bg-morandi-pink-50 border border-morandi-pink-200 rounded-xl">
+            <h4 className="text-sm font-medium text-morandi-pink-800 mb-2 flex items-center gap-2">
+              <Mic className="w-4 h-4" />
+              实时识别
+            </h4>
+            <div className="text-sm text-morandi-gray-700 space-y-1">
+              {finalTranscriptDisplay && (
+                <p className="font-medium">{finalTranscriptDisplay}</p>
+              )}
+              {interimTranscript && (
+                <p className="text-morandi-gray-500 italic">{interimTranscript}</p>
+              )}
+            </div>
+          </div>
+        )}
 
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleCameraCapture}
-        className="hidden"
-      />
-    </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleCameraCapture}
+          className="hidden"
+        />
+      </div>
+    </>
   );
 }

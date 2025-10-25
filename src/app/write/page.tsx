@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
 import { getActualEndpoint } from '@/lib/utils';
 import { Essay, EssayVersion, AIConfig } from '@/types';
-import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle, Mic, Volume2 } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle, Mic, Volume2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
@@ -575,6 +575,15 @@ function WriteContent() {
   const [recognitionProgress, setRecognitionProgress] = useState<number>(0);
   const [isRecognizing, setIsRecognizing] = useState<boolean>(false);
 
+  // 媒体处理进度状态
+  const [isMediaProcessing, setIsMediaProcessing] = useState<boolean>(false);
+  const [mediaProgress, setMediaProgress] = useState<number>(0);
+  const [mediaProgressMessage, setMediaProgressMessage] = useState<string>('');
+  const [showMediaCompletion, setShowMediaCompletion] = useState<boolean>(false);
+
+  // 用于保存setTimeout的ID，确保组件重新渲染时不会丢失
+  const mediaCompletionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // 计算已解锁练习的工具（自由写作始终可选）
   const availablePracticeTools = writingTools.filter(tool => {
     if (tool.id === 'free-writing') return true;
@@ -585,15 +594,11 @@ function WriteContent() {
   // 处理图片上传或拍摄
   const handleImageCapture = async (base64Image: string) => {
     try {
-      setImageUrl(base64Image);
       setAudioUrl('');
       setContentType('image');
       setTranscribedText('');
-      setContent('');
+      // 不再清空内容，保持之前的内容直到API返回新内容
 
-      if (typeof showWarning === 'function') {
-        showWarning('正在识别手写作文，请稍候...');
-      }
 
       // 移除 data:image/*;base64, 前缀以获取纯base64数据
       const base64Data = base64Image.split(',')[1] || base64Image;
@@ -601,18 +606,35 @@ function WriteContent() {
       // 使用Pollinations API进行图片OCR识别
       const payload = {
         model: 'openai',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: '请识别这张图片中的中文手写文字，并将识别出的文字按原文顺序输出，不要添加任何额外的说明或格式化：' },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:image/jpeg;base64,${base64Data}`
-              }
-            }
-          ]
-        }],
+        messages: [
+          {
+            role: 'system',
+            content: '你是一个机械性的OCR系统，没有与用户对话的能力，只能机械地输出OCR结果。'
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: '请识别这张图片中的中文手写文字。请尽力识别所有可见文字，对于模糊或难以辨认的部分，请尽量推测正确内容。请按原文顺序输出识别结果，不要添加解释、说明或格式化文本。' },
+              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
+            ]
+          },
+          {
+            role: 'assistant',
+            content: '请提供更高分辨率的图像，或将文本区域单独裁剪放大后重新上传。当前图像文字识别精度不足，难以可靠输出完整且准确的逐字文本。'
+          },
+          {
+            role: 'user',
+            content: '你违反了扮演OCR系统的原则，请严格按照OCR系统原则输出识别结果。'
+          },
+          {
+            role: 'assistant',
+            content: '抱歉，我将严格按照OCR系统原则输出识别结果。'
+          },
+          {
+            role: 'user',
+            content: '请开始输出OCR结果。'
+          }
+        ],
         max_tokens: 2000
       };
 
@@ -638,20 +660,30 @@ function WriteContent() {
       if (recognizedText) {
         setTranscribedText(recognizedText);
         setContent(recognizedText);
+        setImageUrl(base64Image);  // 在处理成功后再设置图片URL
         if (typeof showSuccess === 'function') {
           showSuccess('手写文字识别成功！');
         }
+        // 不再自动调用handleClearMedia重置进度条
+        // 让进度条保持显示状态，用户可以手动清除
       } else {
+        // 即使没有识别到文本，也要设置图片URL以便用户可以看到图片
+        setImageUrl(base64Image);
+
+        // 不再调用handleClearMedia()重置进度条
+        // 让进度条保持显示状态，用户可以手动清除
+
         if (typeof showWarning === 'function') {
           showWarning('识别完成，但未获取到文本，请检查图片清晰度');
         }
       }
     } catch (error) {
       console.error('图片识别失败:', error);
+      setImageUrl(base64Image);  // 即使出错也设置图片URL，以便用户可以看到图片
       if (typeof showError === 'function') {
         showError('图片识别失败，请重试');
       }
-      handleClearMedia();
+      // 不再调用handleClearMedia()，让进度条保持显示状态
     }
   };
 
@@ -670,7 +702,12 @@ function WriteContent() {
         if (typeof showSuccess === 'function') {
           showSuccess('语音识别成功！');
         }
+        // 延迟重置进度条状态，确保用户能看到识别结果
+        setTimeout(() => {
+          handleClearMedia();
+        }, 1500);
       } else {
+        handleClearMedia();
         setTranscribedText('');
         setContent('');
         if (typeof showWarning === 'function') {
@@ -850,6 +887,16 @@ ${simplifiedHistory}
       }
     }
   }, [availablePracticeTools, selectedTool]);
+
+  // 组件卸载时清除定时器
+  useEffect(() => {
+    return () => {
+      if (mediaCompletionTimeoutRef.current) {
+        clearTimeout(mediaCompletionTimeoutRef.current);
+        mediaCompletionTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const saveEssay = () => {
     // 检查是否完成了今日的每日挑战
@@ -1281,8 +1328,80 @@ ${simplifiedHistory}
     );
   };
 
+  // 渲染媒体处理进度条模态框
+  const renderMediaProgressModal = () => {
+    // 只要正在处理或有进度或显示完成状态，就显示模态框
+    const shouldShowModal = isMediaProcessing || mediaProgress > 0 || showMediaCompletion;
+
+    if (!shouldShowModal) {
+      return null;
+    }
+
+    const progressPercentage = Math.min(Math.round(mediaProgress), 100);
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl">
+          <div className="flex flex-col items-center justify-center gap-6">
+            {!showMediaCompletion ? (
+              <>
+                <Loader2 className="w-16 h-16 text-morandi-blue-500 animate-spin" />
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-morandi-gray-800 mb-2">
+                    {mediaProgressMessage || '正在处理中，请稍候...'}
+                  </h3>
+                  <p className="text-sm text-morandi-gray-600">
+                    如果识别时间较长，请稍候片刻
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-full bg-morandi-green-100 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-morandi-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-morandi-gray-800 mb-2">
+                    识别完成！
+                  </h3>
+                  <p className="text-sm text-morandi-gray-600">
+                    您的内容已成功识别并添加到作文中
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* 进度条 */}
+            <div className="w-full max-w-xs">
+              <div className="flex justify-between text-sm text-morandi-gray-600 mb-2">
+                <span>处理进度</span>
+                <span>{progressPercentage}%</span>
+              </div>
+              <div className="w-full h-3 bg-morandi-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-morandi-blue-500 transition-all duration-500 ease-out"
+                  style={{ width: `${progressPercentage}%` }}
+                />
+              </div>
+            </div>
+
+            {/* 处理完成时自动隐藏，不需要确认按钮 */}
+            {showMediaCompletion && (
+              <div className="mt-4 text-center text-sm text-morandi-gray-500">
+                处理完成，进度框将自动关闭...
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-morandi-gray-100 to-white">
+      {renderMediaProgressModal()}
       {/* 头部 */}
       <div className="bg-white shadow-card border-b border-morandi-gray-200">
         <div className="max-w-7xl mx-auto p-6">
@@ -1407,6 +1526,42 @@ ${simplifiedHistory}
                       currentImage={imageUrl}
                       currentAudio={audioUrl}
                       onClear={handleClearMedia}
+                      onProgressStart={() => {
+                        setIsMediaProcessing(true);
+                        setMediaProgress(0);
+                        setMediaProgressMessage('');
+                        setShowMediaCompletion(false);
+                      }}
+                      onProgressUpdate={(progress, message) => {
+                        setMediaProgress(progress);
+                        setMediaProgressMessage(message);
+                      }}
+                      onProgressComplete={(success, message) => {
+                        if (success) {
+                          setShowMediaCompletion(true);
+                          // 清除之前的定时器（如果有的话）
+                          if (mediaCompletionTimeoutRef.current) {
+                            clearTimeout(mediaCompletionTimeoutRef.current);
+                          }
+                          // 成功后2秒自动隐藏进度框
+                          mediaCompletionTimeoutRef.current = setTimeout(() => {
+                            setIsMediaProcessing(false);
+                            setMediaProgress(0);
+                            setMediaProgressMessage('');
+                            setShowMediaCompletion(false);
+                            mediaCompletionTimeoutRef.current = null;
+                          }, 2000);
+                        } else {
+                          // 清除之前的定时器（如果有的话）
+                          if (mediaCompletionTimeoutRef.current) {
+                            clearTimeout(mediaCompletionTimeoutRef.current);
+                            mediaCompletionTimeoutRef.current = null;
+                          }
+                          setIsMediaProcessing(false);
+                          setMediaProgress(0);
+                          setMediaProgressMessage('');
+                        }
+                      }}
                     />
                   </div>
                 </>
@@ -1418,6 +1573,42 @@ ${simplifiedHistory}
                     currentImage={contentType === 'image' ? imageUrl : ''}
                     currentAudio={contentType === 'audio' ? audioUrl : ''}
                     onClear={handleClearMedia}
+                    onProgressStart={() => {
+                      setIsMediaProcessing(true);
+                      setMediaProgress(0);
+                      setMediaProgressMessage('');
+                      setShowMediaCompletion(false);
+                    }}
+                    onProgressUpdate={(progress, message) => {
+                      setMediaProgress(progress);
+                      setMediaProgressMessage(message);
+                    }}
+                    onProgressComplete={(success, message) => {
+                      if (success) {
+                        setShowMediaCompletion(true);
+                        // 清除之前的定时器（如果有的话）
+                        if (mediaCompletionTimeoutRef.current) {
+                          clearTimeout(mediaCompletionTimeoutRef.current);
+                        }
+                        // 成功后2秒自动隐藏进度框
+                        mediaCompletionTimeoutRef.current = setTimeout(() => {
+                          setIsMediaProcessing(false);
+                          setMediaProgress(0);
+                          setMediaProgressMessage('');
+                          setShowMediaCompletion(false);
+                          mediaCompletionTimeoutRef.current = null;
+                        }, 2000);
+                      } else {
+                        // 清除之前的定时器（如果有的话）
+                        if (mediaCompletionTimeoutRef.current) {
+                          clearTimeout(mediaCompletionTimeoutRef.current);
+                          mediaCompletionTimeoutRef.current = null;
+                        }
+                        setIsMediaProcessing(false);
+                        setMediaProgress(0);
+                        setMediaProgressMessage('');
+                      }
+                    }}
                   />
 
                   <div className="mt-6">
