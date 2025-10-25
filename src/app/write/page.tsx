@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
@@ -1564,6 +1564,8 @@ ${simplifiedHistory}
 
 export default function WritePage() {
   return (
-    <WriteContent />
+    <Suspense fallback={<div>加载中...</div>}>
+      <WriteContent />
+    </Suspense>
   );
 }
