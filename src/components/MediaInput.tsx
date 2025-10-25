@@ -309,20 +309,21 @@ export default function MediaInput({
       console.log('→ 启动语音识别...');
       recognition.start();
 
+      // TODO: 暂时禁用录音功能，只测试语音识别
       // 启动录音（使用相同的音频流）
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      // const mediaRecorder = new MediaRecorder(stream);
+      // mediaRecorderRef.current = mediaRecorder;
+      // audioChunksRef.current = [];
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
+      // mediaRecorder.ondataavailable = (event) => {
+      //   if (event.data.size > 0) {
+      //     audioChunksRef.current.push(event.data);
+      //   }
+      // };
 
-      mediaRecorder.onstop = null;
-      mediaRecorder.start();
-      console.log('✓ 录音已开始');
+      // mediaRecorder.onstop = null;
+      // mediaRecorder.start();
+      console.log('✓ 录音已开始（仅语音识别，不保存音频）');
       
       setIsRecording(true);
       setRecordingTime(0);
@@ -391,54 +392,31 @@ export default function MediaInput({
         console.log('  最终 interimTranscriptRef:', interimTranscriptRef.current);
       }
 
-      if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.stop();
-        
-        await new Promise<void>((resolve) => {
-          if (mediaRecorderRef.current) {
-            mediaRecorderRef.current.onstop = async () => {
-              const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-              const reader = new FileReader();
-              reader.onload = async (event) => {
-                const base64Data = event.target?.result as string;
-                const combinedTranscript = (
-                  `${finalTranscriptRef.current} ${interimTranscriptRef.current}`
-                    .replace(/\s+/g, ' ')
-                    .trim()
-                );
-                
-                setIsProcessing(true);
-                setProgressMessage('正在处理语音识别结果...');
-                
-                try {
-                  console.log('🎤 最终识别结果:', combinedTranscript);
-                  await onAudioCapture({
-                    audioData: base64Data,
-                    transcript: combinedTranscript
-                  });
-                } finally {
-                  setIsProcessing(false);
-                  setProgressMessage('');
-                  finalTranscriptRef.current = '';
-                  interimTranscriptRef.current = '';
-                  setInterimTranscript('');
-                  setFinalTranscriptDisplay('');
-                }
-                
-                resolve();
-              };
-              reader.readAsDataURL(audioBlob);
+      const combinedTranscript = (
+        `${finalTranscriptRef.current} ${interimTranscriptRef.current}`
+          .replace(/\s+/g, ' ')
+          .trim()
+      );
 
-              if (mediaStreamRef.current) {
-                mediaStreamRef.current.getTracks().forEach(track => track.stop());
-                mediaStreamRef.current = null;
-              }
-            };
-          } else {
-            resolve();
-          }
+      setIsProcessing(true);
+      setProgressMessage('正在处理语音识别结果...');
+
+      try {
+        console.log('🎤 最终识别结果:', combinedTranscript);
+        await onAudioCapture({
+          audioData: '',
+          transcript: combinedTranscript
         });
-      } else if (mediaStreamRef.current) {
+      } finally {
+        setIsProcessing(false);
+        setProgressMessage('');
+        finalTranscriptRef.current = '';
+        interimTranscriptRef.current = '';
+        setInterimTranscript('');
+        setFinalTranscriptDisplay('');
+      }
+
+      if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach(track => track.stop());
         mediaStreamRef.current = null;
       }
