@@ -680,7 +680,7 @@ function WriteContent() {
         throw new DOMException('识别已取消', 'AbortError');
       }
 
-      const MAX_DIMENSION = 1280;
+      const MAX_DIMENSION = 800;
       let processedBlob = imageBlob;
 
       try {
