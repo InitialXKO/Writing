@@ -42,9 +42,6 @@ export default function MediaInput({
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const completionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const wasProcessingRef = useRef(false);
-  const recognitionRef = useRef<any>(null);
-  const finalTranscriptRef = useRef<string>('');
-  const interimTranscriptRef = useRef<string>('');
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
@@ -153,13 +150,6 @@ export default function MediaInput({
 
   const startRecording = async () => {
     try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      
-      if (!SpeechRecognition) {
-        alert('您的浏览器不支持语音识别，请使用 Chrome、Edge 或 Safari 浏览器');
-        return;
-      }
-
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
@@ -173,51 +163,14 @@ export default function MediaInput({
         }
       };
 
-      const recognition = new SpeechRecognition();
-      recognitionRef.current = recognition;
-      
-      recognition.lang = 'zh-CN';
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
-
-      finalTranscriptRef.current = '';
-      setInterimTranscript('');
-      setFinalTranscriptDisplay('');
-
-      recognition.onresult = (event: any) => {
-        let interimText = '';
-        let finalText = finalTranscriptRef.current;
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalText += transcript;
-          } else {
-            interimText += transcript;
-          }
-        }
-
-        finalTranscriptRef.current = finalText;
-        interimTranscriptRef.current = interimText;
-        setFinalTranscriptDisplay(finalText);
-        setInterimTranscript(interimText);
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error('语音识别错误:', event.error);
-        if (event.error !== 'no-speech' && event.error !== 'aborted') {
-          alert(`语音识别出错: ${event.error}`);
-        }
-      };
-
       mediaRecorder.onstop = null;
 
       mediaRecorder.start();
-      recognition.start();
-      
+
       setIsRecording(true);
       setRecordingTime(0);
+      setInterimTranscript('正在录音...');
+      setFinalTranscriptDisplay('');
 
       recordingTimerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
@@ -231,20 +184,18 @@ export default function MediaInput({
   const stopRecording = async () => {
     if (isRecording) {
       setIsRecording(false);
-      
+
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = null;
       }
 
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-        recognitionRef.current = null;
-      }
+      setInterimTranscript('');
+      setFinalTranscriptDisplay('正在处理录音...');
 
       if (mediaRecorderRef.current) {
         mediaRecorderRef.current.stop();
-        
+
         await new Promise<void>((resolve) => {
           if (mediaRecorderRef.current) {
             mediaRecorderRef.current.onstop = async () => {
@@ -252,29 +203,57 @@ export default function MediaInput({
               const reader = new FileReader();
               reader.onload = async (event) => {
                 const base64Data = event.target?.result as string;
-                const combinedTranscript = (
-                  `${finalTranscriptRef.current} ${interimTranscriptRef.current}`
-                    .replace(/\s+/g, ' ')
-                    .trim()
-                );
-                
+
                 setIsProcessing(true);
                 setProgressMessage('正在处理语音识别结果...');
-                
+
                 try {
+                  // 移除 data:audio/wav;base64, 前缀以获取纯base64数据
+                  const pureBase64Data = base64Data.split(',')[1] || base64Data;
+
+                  // 使用Pollinations API进行语音识别
+                  const payload = {
+                    model: 'openai-audio',
+                    messages: [{
+                      role: 'user',
+                      content: [
+                        { type: 'text', text: '请转录这段音频中的中文内容：' },
+                        {
+                          type: 'input_audio',
+                          input_audio: {
+                            data: pureBase64Data,
+                            format: 'wav'
+                          }
+                        }
+                      ]
+                    }]
+                  };
+
+                  const apiResponse = await fetch('https://text.pollinations.ai/openai', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                  });
+
+                  if (!apiResponse.ok) {
+                    throw new Error(`API请求失败: ${apiResponse.status} ${apiResponse.statusText}`);
+                  }
+
+                  const result = await apiResponse.json();
+                  const transcript = result.choices?.[0]?.message?.content?.trim() || '';
+
                   await onAudioCapture({
                     audioData: base64Data,
-                    transcript: combinedTranscript
+                    transcript: transcript
                   });
                 } finally {
                   setIsProcessing(false);
                   setProgressMessage('');
-                  finalTranscriptRef.current = '';
-                  interimTranscriptRef.current = '';
-                  setInterimTranscript('');
                   setFinalTranscriptDisplay('');
                 }
-                
+
                 resolve();
               };
               reader.readAsDataURL(audioBlob);

@@ -596,24 +596,41 @@ function WriteContent() {
         showWarning('正在识别手写作文，请稍候...');
       }
 
-      const response = await fetch(base64Image);
-      const imageBlob = await response.blob();
+      // 移除 data:image/*;base64, 前缀以获取纯base64数据
+      const base64Data = base64Image.split(',')[1] || base64Image;
 
-      const client = await Client.connect('axiilay/DeepSeek-OCR-Demo');
-      const result = await client.predict('/process_image', {
-        image: imageBlob,
-        model_size: 'Tiny',
-        task_type: 'Free OCR',
-        is_eval_mode: true,
+      // 使用Pollinations API进行图片OCR识别
+      const payload = {
+        model: 'openai',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: '请识别这张图片中的中文手写文字，并将识别出的文字按原文顺序输出，不要添加任何额外的说明或格式化：' },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:image/jpeg;base64,${base64Data}`
+              }
+            }
+          ]
+        }],
+        max_tokens: 2000
+      };
+
+      const apiResponse = await fetch('https://text.pollinations.ai/openai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
       });
 
-      const data = Array.isArray((result as { data?: unknown }).data)
-        ? ((result as { data: unknown[] }).data)
-        : [];
+      if (!apiResponse.ok) {
+        throw new Error(`API请求失败: ${apiResponse.status} ${apiResponse.statusText}`);
+      }
 
-      const markdownText = typeof data[1] === 'string' ? data[1] : '';
-      const plainText = typeof data[2] === 'string' ? data[2] : '';
-      const recognizedText = (plainText || markdownText || '').trim();
+      const result = await apiResponse.json();
+      const recognizedText = result.choices?.[0]?.message?.content?.trim() || '';
 
       if (recognizedText) {
         setTranscribedText(recognizedText);
