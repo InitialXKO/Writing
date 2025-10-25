@@ -110,14 +110,14 @@ export default function MediaInput({
       return;
     }
 
-    setProgressMessage('正在上传图片...');
     setIsProcessing(true);
-    setProgress(0);
+    setProgressMessage('正在上传图片...');
+    setProgress(10);
 
     // 模拟上传进度
     const uploadInterval = setInterval(() => {
       setProgress(prev => {
-        if (prev >= 30) {
+        if (prev >= 40) {
           clearInterval(uploadInterval);
           return prev;
         }
@@ -126,14 +126,14 @@ export default function MediaInput({
     }, 200);
 
     try {
-      // 等待上传进度达到30%
+      // 等待上传进度达到40%
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       const base64Data = await readFileAsDataURL(file);
 
-      // 更新进度到50%
-      setProgress(50);
-      setProgressMessage('手写作文识别中，请稍候...');
+      // 更新进度到60%
+      setProgress(60);
+      setProgressMessage('正在进行图片识别...');
 
       // 模拟识别进度
       const recognitionInterval = setInterval(() => {
@@ -142,7 +142,7 @@ export default function MediaInput({
             clearInterval(recognitionInterval);
             return prev;
           }
-          return prev + Math.random() * 10 + 5;
+          return prev + Math.random() * 8 + 4;
         });
       }, 300);
 
@@ -173,9 +173,9 @@ export default function MediaInput({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setProgressMessage('正在处理拍照...');
     setIsProcessing(true);
-    setProgress(0);
+    setProgressMessage('正在处理拍照...');
+    setProgress(10);
 
     // 模拟拍照处理进度
     const processInterval = setInterval(() => {
@@ -184,30 +184,30 @@ export default function MediaInput({
           clearInterval(processInterval);
           return prev;
         }
-        return prev + Math.random() * 20 + 10;
+        return prev + Math.random() * 15 + 5;
       });
-    }, 150);
+    }, 200);
 
     try {
       // 等待处理进度达到40%
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const base64Data = await readFileAsDataURL(file);
 
       // 更新进度到60%
       setProgress(60);
-      setProgressMessage('手写作文识别中，请稍候...');
+      setProgressMessage('正在进行图片识别...');
 
       // 模拟识别进度
       const recognitionInterval = setInterval(() => {
         setProgress(prev => {
-          if (prev >= 95) {
+          if (prev >= 90) {
             clearInterval(recognitionInterval);
             return prev;
           }
           return prev + Math.random() * 8 + 4;
         });
-      }, 250);
+      }, 300);
 
       await onImageCapture(base64Data);
 
