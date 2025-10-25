@@ -213,11 +213,19 @@ export default function MediaInput({
         return;
       }
 
+      // 先请求麦克风权限，这样 SpeechRecognition 和 MediaRecorder 都可以使用
+      console.log('→ 请求麦克风权限...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      console.log('✓ 麦克风权限已获取');
+
+      // 初始化转录文本
       finalTranscriptRef.current = '';
       interimTranscriptRef.current = '';
       setInterimTranscript('');
       setFinalTranscriptDisplay('');
 
+      // 创建并配置语音识别
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
       
@@ -297,14 +305,11 @@ export default function MediaInput({
         }
       };
 
+      // 启动语音识别
       console.log('→ 启动语音识别...');
       recognition.start();
 
-      console.log('→ 请求麦克风权限...');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      console.log('✓ 麦克风权限已获取');
-
+      // 启动录音（使用相同的音频流）
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
