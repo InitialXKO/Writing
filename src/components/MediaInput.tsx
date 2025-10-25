@@ -345,7 +345,7 @@ export default function MediaInput({
                   };
 
                   console.log('发送语音识别请求到Pollinations API:', payload);
-                  const apiResponse = await fetch('https://text.pollinations.ai/openai', {
+                  const apiResponse = await fetch('https://text.pollinations.ai/openai?referrer=growsnova.com', {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json'

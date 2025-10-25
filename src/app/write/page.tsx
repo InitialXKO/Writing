@@ -617,7 +617,7 @@ function WriteContent() {
       };
 
       console.log('发送图片识别请求到Pollinations API:', payload);
-      const apiResponse = await fetch('https://text.pollinations.ai/openai', {
+      const apiResponse = await fetch('https://text.pollinations.ai/openai?referrer=growsnova.com', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
