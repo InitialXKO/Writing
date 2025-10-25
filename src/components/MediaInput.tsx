@@ -36,6 +36,8 @@ export default function MediaInput({
   const [recordingTime, setRecordingTime] = useState(0);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
+  const [transcript, setTranscript] = useState('');
+  const [finalTranscript, setFinalTranscript] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -45,6 +47,7 @@ export default function MediaInput({
   const completionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const wasProcessingRef = useRef(false);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     const isActive = isProcessing || isRecognizing;
@@ -182,141 +185,74 @@ export default function MediaInput({
     }
   };
 
-  const startRecording = async () => {
-    try {
-      console.log('→ 请求麦克风权限...');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      console.log('✓ 麦克风权限已获取');
+  const startRecording = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-      // 启动录音
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.start();
-      console.log('✓ 录音已开始');
-      
-      setIsRecording(true);
-      setRecordingTime(0);
-
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
-      }, 1000);
-    } catch (error) {
-      console.error('✗ 启动录音失败:', error);
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => track.stop());
-        mediaStreamRef.current = null;
-      }
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      alert(`无法启动语音录制: ${errorMessage}\n请检查麦克风权限设置`);
+    if (!SpeechRecognition) {
+      alert('您的浏览器不支持语音识别，请使用 Chrome、Edge 或 Safari 浏览器');
+      return;
     }
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+
+    recognition.lang = 'zh-CN';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event: any) => {
+      let interimText = '';
+      let finalText = finalTranscript;
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalText += transcript;
+        } else {
+          interimText += transcript;
+        }
+      }
+
+      setFinalTranscript(finalText);
+      setTranscript(finalText + interimText);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('语音识别错误:', event.error);
+      alert(`语音识别出错: ${event.error}`);
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognition.start();
+    setIsRecording(true);
   };
 
+
   const stopRecording = async () => {
-    if (isRecording) {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
       setIsRecording(false);
-      console.log('→ 停止录音...');
       
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-
-      if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.stop();
-        
-        await new Promise<void>((resolve) => {
-          if (mediaRecorderRef.current) {
-            mediaRecorderRef.current.onstop = async () => {
-              const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-              console.log('✓ 录音完成，音频大小:', audioBlob.size);
-
-              setIsProcessing(true);
-              setProgressMessage('正在转录语音...');
-
-              try {
-                // 将音频转换为 base64
-                const reader = new FileReader();
-                const base64Promise = new Promise<string>((resolve, reject) => {
-                  reader.onload = () => {
-                    const result = reader.result as string;
-                    // 移除 data:audio/webm;base64, 前缀
-                    const base64Data = result.split(',')[1];
-                    resolve(base64Data);
-                  };
-                  reader.onerror = reject;
-                });
-                reader.readAsDataURL(audioBlob);
-                const base64Audio = await base64Promise;
-
-                console.log('→ 调用 Pollinations Speech-to-Text API...');
-                
-                // 调用 Pollinations API
-                const response = await fetch('https://text.pollinations.ai/openai', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    model: 'openai-audio',
-                    messages: [{
-                      role: 'user',
-                      content: [
-                        { type: 'text', text: '请转录这段音频中的中文内容：' },
-                        {
-                          type: 'input_audio',
-                          input_audio: {
-                            data: base64Audio,
-                            format: 'webm'
-                          }
-                        }
-                      ]
-                    }]
-                  })
-                });
-
-                if (!response.ok) {
-                  throw new Error(`API 请求失败: ${response.status}`);
-                }
-
-                const result = await response.json();
-                const transcript = result.choices?.[0]?.message?.content || '';
-                console.log('✓ 转录完成:', transcript);
-
-                // 将音频 blob 转换为 data URL 供播放
-                const audioUrl = URL.createObjectURL(audioBlob);
-
-                await onAudioCapture({
-                  audioData: audioUrl,
-                  transcript: transcript.trim()
-                });
-              } catch (error) {
-                console.error('✗ 语音转录失败:', error);
-                alert('语音转录失败，请重试');
-              } finally {
-                setIsProcessing(false);
-                setProgressMessage('');
-              }
-
-              resolve();
-            };
-          } else {
-            resolve();
-          }
+      console.log('🎤 最终识别结果:', finalTranscript);
+      
+      setIsProcessing(true);
+      setProgressMessage('正在处理语音识别结果...');
+      
+      try {
+        await onAudioCapture({
+          audioData: '',
+          transcript: finalTranscript
         });
-      }
-
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => track.stop());
-        mediaStreamRef.current = null;
+      } finally {
+        setIsProcessing(false);
+        setProgressMessage('');
+        setTranscript('');
+        setFinalTranscript('');
       }
     }
   };
@@ -446,12 +382,22 @@ export default function MediaInput({
             <div className="w-8 h-8 bg-morandi-pink-600 rounded-full flex items-center justify-center">
               <div className="w-4 h-4 bg-white rounded-sm"></div>
             </div>
-            <span className="text-sm font-medium text-morandi-pink-700">停止录音</span>
-            <span className="text-xs text-morandi-pink-600 font-mono">{formatTime(recordingTime)}</span>
+            <span className="text-sm font-medium text-morandi-pink-700">停止识别</span>
           </button>
         )}
       </div>
 
+      {isRecording && (
+        <div className="mt-4 p-4 bg-morandi-pink-50 border border-morandi-pink-200 rounded-xl">
+          <h4 className="text-sm font-medium text-morandi-pink-800 mb-2 flex items-center gap-2">
+            <Mic className="w-4 h-4" />
+            实时识别
+          </h4>
+          <p className="text-sm text-morandi-gray-700 whitespace-pre-wrap min-h-[80px]">
+            {transcript || '正在聆听，请开始说话...'}
+          </p>
+        </div>
+      )}
 
       <input
         ref={fileInputRef}
