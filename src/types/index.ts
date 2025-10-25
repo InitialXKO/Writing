@@ -121,6 +121,14 @@ export interface EssayVersion {
   actionItems?: ActionItem[];
   // 新增父版本ID，支持树状版本历史
   parentId?: string;
+  // 内容类型
+  contentType?: 'text' | 'image' | 'audio';
+  // 图片URL（手写作文图片）
+  imageUrl?: string;
+  // 音频URL（语音录制）
+  audioUrl?: string;
+  // 转录文本（从图片或音频转录的文本）
+  transcribedText?: string;
 }
 
 // 作文数据
@@ -136,4 +144,12 @@ export interface Essay {
   currentVersionId?: string;
   // 新增行动项
   actionItems?: ActionItem[];
+  // 内容类型
+  contentType?: 'text' | 'image' | 'audio';
+  // 图片URL（手写作文图片）
+  imageUrl?: string;
+  // 音频URL（语音录制）
+  audioUrl?: string;
+  // 转录文本（从图片或音频转录的文本）
+  transcribedText?: string;
 }

@@ -14,9 +14,26 @@ interface FeedbackModalProps {
   onActionItemUpdate?: (id: string, completed: boolean) => void;
   onReReview?: (newContent: string) => void; // 添加重新批改回调
   onContentUpdate?: (newContent: string) => void; // 添加内容更新回调
+  contentType?: 'text' | 'image' | 'audio';
+  imageUrl?: string;
+  audioUrl?: string;
+  onReCapture?: () => void; // 重新上传/拍照/录音
 }
 
-export default function FeedbackModal({ isOpen, onClose, content, feedback, actionItems, onActionItemUpdate, onReReview, onContentUpdate }: FeedbackModalProps) {
+export default function FeedbackModal({
+  isOpen,
+  onClose,
+  content,
+  feedback,
+  actionItems,
+  onActionItemUpdate,
+  onReReview,
+  onContentUpdate,
+  contentType = 'text',
+  imageUrl,
+  audioUrl,
+  onReCapture
+}: FeedbackModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(content);
   const [isReReviewing, setIsReReviewing] = useState(false);
@@ -102,36 +119,75 @@ export default function FeedbackModal({ isOpen, onClose, content, feedback, acti
                 你的原文
               </h3>
               <div className="flex gap-2">
-                {isEditing ? (
-                  <>
+                {contentType === 'text' ? (
+                  isEditing ? (
+                    <>
+                      <button
+                        onClick={handleSaveEdit}
+                        className="flex items-center gap-1 px-3 py-1 bg-morandi-green-500 hover:bg-morandi-green-600 text-white text-sm rounded-lg transition-colors"
+                      >
+                        <Save className="w-4 h-4" />
+                        保存
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="flex items-center gap-1 px-3 py-1 bg-morandi-gray-500 hover:bg-morandi-gray-600 text-white text-sm rounded-lg transition-colors"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        取消
+                      </button>
+                    </>
+                  ) : (
                     <button
-                      onClick={handleSaveEdit}
+                      onClick={() => setIsEditing(true)}
+                      className="flex items-center gap-1 px-3 py-1 bg-morandi-blue-500 hover:bg-morandi-blue-600 text-white text-sm rounded-lg transition-colors"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      编辑文本
+                    </button>
+                  )
+                ) : (
+                  onReCapture && (
+                    <button
+                      onClick={onReCapture}
                       className="flex items-center gap-1 px-3 py-1 bg-morandi-green-500 hover:bg-morandi-green-600 text-white text-sm rounded-lg transition-colors"
                     >
-                      <Save className="w-4 h-4" />
-                      保存
+                      {contentType === 'image' ? '重新上传/拍照' : '重新录音'}
                     </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="flex items-center gap-1 px-3 py-1 bg-morandi-gray-500 hover:bg-morandi-gray-600 text-white text-sm rounded-lg transition-colors"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      取消
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-1 px-3 py-1 bg-morandi-blue-500 hover:bg-morandi-blue-600 text-white text-sm rounded-lg transition-colors"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                    编辑
-                  </button>
+                  )
                 )}
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
-              {isEditing ? (
+              {contentType === 'image' && imageUrl && !isEditing ? (
+                <div className="space-y-4">
+                  <img
+                    src={imageUrl}
+                    alt="手写作文"
+                    className="w-full h-auto max-h-[400px] object-contain rounded-lg shadow-md"
+                  />
+                  <div className="border-t border-morandi-gray-200 pt-4">
+                    <p className="text-xs text-morandi-gray-500 mb-2">识别文本：</p>
+                    <pre className="whitespace-pre-wrap font-sans text-morandi-gray-700 text-sm">
+                      {content}
+                    </pre>
+                  </div>
+                </div>
+              ) : contentType === 'audio' && audioUrl && !isEditing ? (
+                <div className="space-y-4">
+                  <audio
+                    src={audioUrl}
+                    controls
+                    className="w-full"
+                  />
+                  <div className="border-t border-morandi-gray-200 pt-4">
+                    <p className="text-xs text-morandi-gray-500 mb-2">转录文本：</p>
+                    <pre className="whitespace-pre-wrap font-sans text-morandi-gray-700 text-sm">
+                      {content}
+                    </pre>
+                  </div>
+                </div>
+              ) : isEditing ? (
                 <textarea
                   value={editedContent}
                   onChange={(e) => setEditedContent(e.target.value)}

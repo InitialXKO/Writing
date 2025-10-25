@@ -1,18 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Client } from '@gradio/client';
 import { useAppStore, generateActionItems } from '@/lib/store';
 import { useSearchParams } from 'next/navigation';
 import { writingTools } from '@/data/tools';
 import { getActualEndpoint } from '@/lib/utils';
 import { Essay, EssayVersion, AIConfig } from '@/types';
-import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, Edit3, Lightbulb, Zap, CheckCircle, Mic, Volume2 } from 'lucide-react';
 import Link from 'next/link';
 import FeedbackModal from '@/components/FeedbackModal';
 import ActionItemsList from '@/components/ActionItemsList';
 import CompositionPaper from '@/components/CompositionPaper';
+import MediaInput, { AudioCaptureResult } from '@/components/MediaInput';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import VoiceRecognitionPanel from '@/components/VoiceRecognitionPanel';
 
 interface VersionNode extends EssayVersion {
   order: number;
@@ -565,12 +568,531 @@ function WriteContent() {
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
   const [actionItems, setActionItems] = useState<any[]>([]);
 
+  // 媒体输入相关状态
+  const [contentType, setContentType] = useState<'text' | 'image' | 'audio'>('text');
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [audioUrl, setAudioUrl] = useState<string>('');
+  const [transcribedText, setTranscribedText] = useState<string>('');
+  const [isRecognizing, setIsRecognizing] = useState<boolean>(false);
+  const recognitionAbortControllerRef = useRef<AbortController | null>(null);
+
   // 计算已解锁练习的工具（自由写作始终可选）
   const availablePracticeTools = writingTools.filter(tool => {
     if (tool.id === 'free-writing') return true;
     const level = progress.levels.find(l => l.toolId === tool.id);
     return !!level?.testPassed;
   });
+
+  const clearMediaState = () => {
+    setContentType('text');
+    setImageUrl('');
+    setAudioUrl('');
+    setTranscribedText('');
+    setIsRecognizing(false);
+  };
+
+  const handleCancelRecognition = () => {
+    console.log('→ 取消图片识别');
+    if (recognitionAbortControllerRef.current) {
+      recognitionAbortControllerRef.current.abort();
+      recognitionAbortControllerRef.current = null;
+    }
+    setIsRecognizing(false);
+    clearMediaState();
+    if (typeof showWarning === 'function') {
+      showWarning('已取消识别');
+    }
+  };
+
+  // 使用 Pollinations Vision API 进行 OCR（降级方案）
+  const recognizeWithPollinations = async (base64Image: string, signal: AbortSignal): Promise<string> => {
+    console.log('→ 尝试使用 Pollinations Vision API 进行 OCR...');
+    const response = await fetch('/api/pollinations/vision', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        imageDataUrl: base64Image,
+        prompt: '请识别这张图片中的所有手写文字，直接输出识别的文字内容，不要添加任何解释或格式。',
+        maxTokens: 800,
+        timeoutMs: 45000,
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: '未知错误' }));
+      throw new Error(error.error || `Pollinations Vision API 请求失败: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const rawText = (data.description || '').trim();
+    
+    if (!rawText) {
+      throw new Error('Pollinations Vision API 未返回识别结果');
+    }
+
+    const normalizedText = rawText
+      .replace(/```[\s\S]*?```/g, (block: string) => block.replace(/```/g, '').trim())
+      .replace(/^[#>*\-\s]+/gm, (line: string) => line.replace(/^[#>*\-\s]+/, ''))
+      .replace(/^(?:OCR|识别|内容)(?:结果)?[:：]\s*/gi, '')
+      .replace(/\r/g, '')
+      .trim();
+
+    if (!normalizedText) {
+      throw new Error('Pollinations Vision API 返回的内容为空');
+    }
+
+    console.log('✓ Pollinations Vision API 识别成功，文本长度:', normalizedText.length);
+    return normalizedText;
+  };
+
+  // 处理图片上传或拍摄
+  const handleImageCapture = async (base64Image: string) => {
+    if (recognitionAbortControllerRef.current) {
+      recognitionAbortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    recognitionAbortControllerRef.current = abortController;
+
+    const GRADIO_TIMEOUT = 30000;
+    let gradioTimeoutHandle: NodeJS.Timeout | null = null;
+
+    try {
+      setImageUrl(base64Image);
+      setAudioUrl('');
+      setContentType('image');
+      setTranscribedText('');
+
+      setIsRecognizing(true);
+      if (typeof showWarning === 'function') {
+        showWarning('正在识别手写作文，请稍候...');
+      }
+
+      console.log('→ 开始图片识别（优先使用 Gradio OCR）');
+      const response = await fetch(base64Image, { signal: abortController.signal });
+      const imageBlob = await response.blob();
+      console.log('✓ 图片加载完成，准备处理分辨率...');
+
+      if (abortController.signal.aborted) {
+        throw new DOMException('识别已取消', 'AbortError');
+      }
+
+      const MAX_DIMENSION = 1280;
+      let processedBlob = imageBlob;
+
+      try {
+        const imageBitmap = await createImageBitmap(imageBlob);
+        const originalWidth = imageBitmap.width;
+        const originalHeight = imageBitmap.height;
+
+        if (originalWidth > MAX_DIMENSION || originalHeight > MAX_DIMENSION) {
+          const scale = Math.min(MAX_DIMENSION / originalWidth, MAX_DIMENSION / originalHeight);
+          const targetWidth = Math.round(originalWidth * scale);
+          const targetHeight = Math.round(originalHeight * scale);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+
+            const downsampledBlob = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob(
+                (blob) => {
+                  if (blob) {
+                    resolve(blob);
+                  } else {
+                    reject(new Error('Downsampling failed'));
+                  }
+                },
+                'image/jpeg',
+                0.92
+              );
+            });
+
+            processedBlob = downsampledBlob;
+            console.log('✓ 图片已下采样:', {
+              originalWidth,
+              originalHeight,
+              targetWidth,
+              targetHeight,
+              originalSize: imageBlob.size,
+              downsampledSize: downsampledBlob.size,
+            });
+          }
+        }
+      } catch (downsampleError) {
+        console.warn('⚠ 图片下采样失败，使用原图继续:', downsampleError);
+      }
+
+      const imageFile = new File([processedBlob], `handwriting-${Date.now()}.jpg`, {
+        type: processedBlob.type || 'image/jpeg'
+      });
+      console.log('✓ 图片准备完成，连接 OCR 服务...');
+
+      let recognizedText = '';
+      let usedFallback = false;
+
+      try {
+        const client = await Client.connect('axiilay/DeepSeek-OCR-Demo');
+        console.log('✓ OCR 服务已连接，开始识别...');
+
+        if (abortController.signal.aborted) {
+          throw new DOMException('识别已取消', 'AbortError');
+        }
+
+        const gradioPromise = client.predict('/process_image', {
+          image: imageFile,
+          model_size: 'Tiny',
+          task_type: 'Free OCR',
+          is_eval_mode: true,
+        });
+
+        const timeoutPromise = new Promise((_, reject) => {
+          gradioTimeoutHandle = setTimeout(() => {
+            console.warn('⚠ Gradio OCR 超时，准备降级到 Pollinations Vision API');
+            reject(new Error('Gradio OCR 超时'));
+          }, GRADIO_TIMEOUT);
+        });
+
+        const result = await Promise.race([gradioPromise, timeoutPromise]);
+
+        if (gradioTimeoutHandle) {
+          clearTimeout(gradioTimeoutHandle);
+          gradioTimeoutHandle = null;
+        }
+
+        if (abortController.signal.aborted) {
+          throw new DOMException('识别已取消', 'AbortError');
+        }
+
+        console.log('✓ Gradio OCR 识别完成，处理结果...');
+        const data = Array.isArray((result as { data?: unknown }).data)
+          ? ((result as { data: unknown[] }).data)
+          : [];
+
+        const markdownText = typeof data[1] === 'string' ? data[1] : '';
+        const plainText = typeof data[2] === 'string' ? data[2] : '';
+        recognizedText = (plainText || markdownText || '').trim();
+
+        if (!recognizedText) {
+          throw new Error('Gradio OCR 未返回识别结果');
+        }
+
+        console.log('✓ Gradio OCR 识别成功，文本长度:', recognizedText.length);
+      } catch (gradioError) {
+        if (gradioTimeoutHandle) {
+          clearTimeout(gradioTimeoutHandle);
+          gradioTimeoutHandle = null;
+        }
+
+        if (gradioError instanceof DOMException && gradioError.name === 'AbortError') {
+          throw gradioError;
+        }
+
+        console.warn('⚠ Gradio OCR 失败，降级到 Pollinations Vision API:', gradioError);
+        
+        if (typeof showWarning === 'function') {
+          showWarning('主识别服务失败，正在尝试备用识别方案...');
+        }
+
+        usedFallback = true;
+
+        try {
+          recognizedText = await recognizeWithPollinations(base64Image, abortController.signal);
+        } catch (pollinationsError) {
+          console.error('✗ Pollinations Vision API 也失败了:', pollinationsError);
+          throw new Error(`所有识别方案都失败了。主服务错误: ${gradioError instanceof Error ? gradioError.message : '未知错误'}，备用服务错误: ${pollinationsError instanceof Error ? pollinationsError.message : '未知错误'}`);
+        }
+      }
+
+      if (recognizedText) {
+        setTranscribedText(recognizedText);
+
+        const currentContent = content.trim();
+        
+        if (typeof showWarning === 'function') {
+          showWarning('正在智能校正标点和错别字...');
+        }
+
+        try {
+          let promptContent: string;
+          
+          if (currentContent) {
+            // 稿纸有内容，让AI合并并去重
+            promptContent = `你是小学六年级作文指导老师。现在学生通过拍照手写作文继续写作。
+
+稿纸已有内容：
+${currentContent}
+
+新识别的手写内容：
+${recognizedText}
+
+请完成以下任务：
+1. 仔细对比两段内容，识别出哪些是重复的，哪些是新增的
+2. 如果手写内容包含了稿纸已有的部分，只保留新增的部分
+3. 将新增内容接在稿纸内容后面，形成完整连贯的文章
+4. 校正标点符号（确保句号、逗号、问号等使用正确）
+5. 纠正明显的OCR识别错误和同音字错误
+6. 严格保持学生原有的语气、用词和表达方式
+7. 不要改变文章的意思和风格
+
+重要：只输出校正后的完整文章内容，不要重复内容，不要添加任何解释或评论。`;
+          } else {
+            // 稿纸为空，只需校正新内容
+            promptContent = `请对以下手写文字识别文本进行校正：
+
+${recognizedText}
+
+要求：
+1. 校正标点符号
+2. 纠正明显的OCR识别错误和同音字错误
+3. 保持原有语气和表达方式
+4. 只输出校正后的文本，不要添加解释
+
+校正后的文本：`;
+          }
+
+          const messages: ChatMessage[] = [
+            {
+              role: 'system',
+              content: '你是一位小学六年级作文指导老师，擅长校正标点符号和OCR识别错误，同时严格保持学生原有的语气和表达方式。',
+            },
+            {
+              role: 'user',
+              content: promptContent,
+            },
+          ];
+
+          const usingCustomApi = isNonEmptyString(aiConfig?.apiKey);
+          let correctedText: string;
+
+          if (usingCustomApi && aiConfig) {
+            correctedText = await callOpenAIChatCompletion(messages, aiConfig, {
+              temperature: 0.3,
+              maxTokens: 2000,
+            });
+          } else {
+            const { content: pollinationsResponse } = await callPollinationsChatWithFallback(messages, {
+              preferredModel: 'openai',
+            });
+            correctedText = pollinationsResponse;
+          }
+
+          const finalText = correctedText.trim();
+          console.log('✓ AI校正完成，原文长度:', currentContent.length, '识别长度:', recognizedText.length, '结果长度:', finalText.length);
+          setContent(finalText);
+          setTranscribedText(finalText);
+
+          const method = usedFallback ? '（使用备用识别方案）' : '';
+          if (typeof showSuccess === 'function') {
+            showSuccess(`手写文字识别成功${method}，已智能校正！`);
+          }
+        } catch (error) {
+          console.error('AI校正失败:', error);
+          // AI校正失败时，直接使用识别内容（不合并，避免重复）
+          setContent(recognizedText);
+          setTranscribedText(recognizedText);
+          const method = usedFallback ? '（使用备用识别方案）' : '';
+          if (typeof showWarning === 'function') {
+            showWarning(`手写文字识别成功${method}，但智能校正失败`);
+          }
+        }
+      } else {
+        console.warn('⚠ 识别完成但未获取到文本');
+        if (typeof showWarning === 'function') {
+          showWarning('识别完成，但未获取到文本，请检查图片清晰度');
+        }
+      }
+    } catch (error) {
+      if (gradioTimeoutHandle) {
+        clearTimeout(gradioTimeoutHandle);
+      }
+
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.info('✓ 识别已被取消');
+        return;
+      }
+
+      console.error('✗ 图片识别失败:', error);
+      if (typeof showError === 'function') {
+        const errorMessage = error instanceof Error ? error.message : '未知错误';
+        showError(`图片识别失败: ${errorMessage}`);
+      }
+      clearMediaState();
+    } finally {
+      if (gradioTimeoutHandle) {
+        clearTimeout(gradioTimeoutHandle);
+      }
+      if (recognitionAbortControllerRef.current === abortController) {
+        recognitionAbortControllerRef.current = null;
+      }
+      setIsRecognizing(false);
+    }
+  };
+
+  // 处理音频录制
+  const handleAudioCapture = async ({ audioData, transcript }: AudioCaptureResult) => {
+    try {
+      console.log('📝 handleAudioCapture 收到参数:', {
+        audioDataLength: audioData?.length || 0,
+        transcriptLength: transcript?.length || 0,
+        transcript: transcript
+      });
+
+      const normalizedTranscript = transcript?.trim();
+      console.log('📝 归一化后的转录文本:', normalizedTranscript);
+
+      if (audioData) {
+        setAudioUrl(audioData);
+        setContentType('audio');
+      } else {
+        setAudioUrl('');
+        setContentType('text');
+      }
+
+      if (normalizedTranscript) {
+        setTranscribedText(normalizedTranscript);
+
+        const currentContent = content.trim();
+        
+        console.log('🔍 语音识别调试信息:', {
+          稿纸内容长度: currentContent.length,
+          稿纸内容前50字: currentContent.substring(0, 50),
+          识别内容长度: normalizedTranscript.length,
+          识别内容前50字: normalizedTranscript.substring(0, 50),
+          识别内容后50字: normalizedTranscript.substring(Math.max(0, normalizedTranscript.length - 50)),
+        });
+        
+        if (typeof showWarning === 'function') {
+          showWarning('正在智能校正标点和错别字...');
+        }
+
+        try {
+          let promptContent: string;
+          
+          if (currentContent) {
+            // 稿纸有内容，让AI合并并去重
+            promptContent = `你是小学六年级作文指导老师。现在学生通过语音继续写作文。
+
+稿纸已有内容：
+${currentContent}
+
+新的语音识别内容：
+${normalizedTranscript}
+
+请完成以下任务：
+1. 仔细对比两段内容，识别出哪些是重复的，哪些是新增的
+2. 如果语音识别内容包含了稿纸已有的部分，只保留新增的部分
+3. 将新增内容接在稿纸内容后面，形成完整连贯的文章
+4. 校正标点符号（确保句号、逗号、问号等使用正确）
+5. 纠正明显的同音字错误（如"的地得"等）
+6. 严格保持学生原有的语气、用词和表达方式
+7. 不要改变文章的意思和风格
+
+重要：只输出校正后的完整文章内容，不要重复内容，不要添加任何解释或评论。`;
+          } else {
+            // 稿纸为空，只需校正新内容
+            promptContent = `请对以下语音识别文本进行校正：
+
+${normalizedTranscript}
+
+要求：
+1. 校正标点符号
+2. 纠正明显的同音字错误
+3. 保持原有语气和表达方式
+4. 只输出校正后的文本，不要添加解释
+
+校正后的文本：`;
+          }
+
+          const messages: ChatMessage[] = [
+            {
+              role: 'system',
+              content: '你是一位小学六年级作文指导老师，擅长校正标点符号和语音识别错误，同时严格保持学生原有的语气和表达方式。',
+            },
+            {
+              role: 'user',
+              content: promptContent,
+            },
+          ];
+
+          const usingCustomApi = isNonEmptyString(aiConfig?.apiKey);
+          let correctedText: string;
+
+          if (usingCustomApi && aiConfig) {
+            correctedText = await callOpenAIChatCompletion(messages, aiConfig, {
+              temperature: 0.3,
+              maxTokens: 2000,
+            });
+          } else {
+            const { content: pollinationsResponse } = await callPollinationsChatWithFallback(messages, {
+              preferredModel: 'openai',
+            });
+            correctedText = pollinationsResponse;
+          }
+
+          const finalText = correctedText.trim();
+          console.log('✅ AI校正完成，原文长度:', currentContent.length, '识别长度:', normalizedTranscript.length, '结果长度:', finalText.length);
+          setContent(finalText);
+          setTranscribedText(finalText);
+
+          if (typeof showSuccess === 'function') {
+            showSuccess('语音识别成功，已智能校正！');
+          }
+        } catch (error) {
+          console.error('AI校正失败:', error);
+          // AI校正失败时，直接使用识别内容（不合并，避免重复）
+          setContent(normalizedTranscript);
+          setTranscribedText(normalizedTranscript);
+          if (typeof showWarning === 'function') {
+            showWarning('语音识别成功，但智能校正失败');
+          }
+        }
+      } else {
+        console.warn('⚠️ 转录文本为空');
+        setTranscribedText('');
+        setContent('');
+        if (typeof showWarning === 'function') {
+          showWarning('识别未捕捉到语音内容，请重试或注意语速和清晰度');
+        }
+      }
+    } catch (error) {
+      console.error('语音识别处理失败:', error);
+      if (typeof showError === 'function') {
+        showError('语音识别处理失败，请重试');
+      }
+      handleClearMedia();
+    }
+  };
+
+  // 清除媒体并恢复稿纸
+  const handleClearMedia = () => {
+    if (recognitionAbortControllerRef.current) {
+      recognitionAbortControllerRef.current.abort();
+      recognitionAbortControllerRef.current = null;
+    }
+    clearMediaState();
+  };
+
+  const handleContentUpdate = (value: string) => {
+    setContent(value);
+    if (contentType !== 'text') {
+      setTranscribedText(value);
+    }
+  };
+
+  const handleReCapture = () => {
+    handleClearMedia();
+    setIsFeedbackModalOpen(false);
+  };
 
   const runOverallReview = async (essayId: string) => {
     const { essays: currentEssays } = useAppStore.getState();
@@ -655,8 +1177,13 @@ ${simplifiedHistory}
       const essay = essays.find(e => e.id === essayId);
       if (essay) {
         setTitle(essay.title);
-        setContent(essay.content);
         setSelectedTool(essay.toolUsed);
+        const essayContent = essay.transcribedText || essay.content || '';
+        setContent(essayContent);
+        setTranscribedText(essay.transcribedText || '');
+        setContentType(essay.contentType || 'text');
+        setImageUrl(essay.imageUrl || '');
+        setAudioUrl(essay.audioUrl || '');
       }
     }
 
@@ -667,7 +1194,12 @@ ${simplifiedHistory}
         if (essay && essay.versions) {
           const version = essay.versions.find(v => v.id === versionId);
           if (version) {
-            setContent(version.content);
+            const versionContent = version.transcribedText || version.content || '';
+            setContent(versionContent);
+            setTranscribedText(version.transcribedText || '');
+            setContentType(version.contentType || essay?.contentType || 'text');
+            setImageUrl(version.imageUrl || '');
+            setAudioUrl(version.audioUrl || '');
           }
         }
       }
@@ -724,7 +1256,12 @@ ${simplifiedHistory}
       // 如果是编辑已存在的作文，添加新版本
       if (editingVersionId) {
         // 如果是编辑特定版本，保存为新版本，基于该版本创建分支
-        addEssayVersion(editingEssayId, content, feedback, actionItems, editingVersionId);
+        addEssayVersion(editingEssayId, content, feedback, actionItems, editingVersionId, {
+          contentType,
+          imageUrl,
+          audioUrl,
+          transcribedText
+        });
         showSuccess('新版本已保存到作文中');
       } else {
         // 如果是编辑当前版本，更新作文
@@ -732,6 +1269,10 @@ ${simplifiedHistory}
           title,
           content,
           toolUsed: selectedTool,
+          contentType,
+          imageUrl,
+          audioUrl,
+          transcribedText
         });
         showSuccess('作文已更新');
       }
@@ -741,6 +1282,10 @@ ${simplifiedHistory}
         title,
         content,
         toolUsed: selectedTool,
+        contentType,
+        imageUrl,
+        audioUrl,
+        transcribedText
       });
       showSuccess('作文已保存到我的作文中');
     }
@@ -768,9 +1313,34 @@ ${simplifiedHistory}
       return;
     }
 
-    if (!title.trim() || !content.trim()) {
-      showWarning('请填写标题和内容');
+    if (!title.trim()) {
+      showWarning('请填写作文标题');
       return;
+    }
+
+    if (contentType === 'text') {
+      if (!content.trim()) {
+        showWarning('请填写作文内容');
+        return;
+      }
+    } else if (contentType === 'image') {
+      if (!imageUrl) {
+        showWarning('请上传或拍摄手写作文图片');
+        return;
+      }
+      if (!content.trim()) {
+        showWarning('手写作文正在识别中，请稍候或手动补充识别结果');
+        return;
+      }
+    } else if (contentType === 'audio') {
+      if (!audioUrl) {
+        showWarning('请录制语音作文');
+        return;
+      }
+      if (!content.trim()) {
+        showWarning('语音转录尚未完成，请稍候或手动补充文本');
+        return;
+      }
     }
 
     // 检查行动项完成情况
@@ -1204,12 +1774,55 @@ ${simplifiedHistory}
                 </div>
                 作文内容
               </label>
-              <CompositionPaper
-                value={content}
-                onChange={setContent}
-                placeholder="开始你的创作吧...运用你学到的写作技巧"
-                className="w-full"
-              />
+
+              {contentType === 'text' ? (
+                <>
+                  <CompositionPaper
+                    value={content}
+                    onChange={handleContentUpdate}
+                    placeholder="开始你的创作吧...运用你学到的写作技巧"
+                    className="w-full"
+                  />
+
+                  <div className="mt-6 p-4 bg-morandi-blue-50 border border-morandi-blue-100 rounded-xl">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-morandi-blue-800">或者试试手写/语音输入</h3>
+                      <span className="text-xs text-morandi-blue-600">上传后将替换稿纸</span>
+                    </div>
+                    <MediaInput
+                      onImageCapture={handleImageCapture}
+                      onAudioCapture={handleAudioCapture}
+                      currentImage={imageUrl}
+                      currentAudio={audioUrl}
+                      onClear={handleClearMedia}
+                      onCancelRecognition={handleCancelRecognition}
+                      isRecognizing={isRecognizing}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <MediaInput
+                    onImageCapture={handleImageCapture}
+                    onAudioCapture={handleAudioCapture}
+                    currentImage={contentType === 'image' ? imageUrl : ''}
+                    currentAudio={contentType === 'audio' ? audioUrl : ''}
+                    onClear={handleClearMedia}
+                    onCancelRecognition={handleCancelRecognition}
+                    isRecognizing={isRecognizing}
+                  />
+
+                  <div className="mt-6">
+                    <label className="block text-sm font-medium text-morandi-gray-700 mb-2">识别结果（可在此修改文本）</label>
+                    <textarea
+                      value={content}
+                      onChange={(e) => handleContentUpdate(e.target.value)}
+                      className="w-full min-h-[200px] p-4 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white"
+                      placeholder="系统会自动识别你的手写或语音，如果有误可以在这里修改~"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1314,7 +1927,11 @@ ${simplifiedHistory}
         actionItems={actionItems}
         onActionItemUpdate={handleActionItemUpdate}
         onReReview={handleReReview}
-        onContentUpdate={setContent}
+        onContentUpdate={handleContentUpdate}
+        contentType={contentType}
+        imageUrl={imageUrl}
+        audioUrl={audioUrl}
+        onReCapture={handleReCapture}
       />
 
       {/* 确认对话框 */}
@@ -1332,6 +1949,7 @@ ${simplifiedHistory}
           setConfirmAction(null);
         }}
       />
+
     </div>
   );
 }

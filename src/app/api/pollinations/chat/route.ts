@@ -16,7 +16,7 @@ type PollinationsRequestPayload = {
   timeoutMs?: number;
 };
 
-const POLLINATIONS_ENDPOINT = 'https://text.pollinations.ai/';
+const POLLINATIONS_ENDPOINT = 'https://text.pollinations.ai/?referrer=growsnova.com';
 const POLLINATIONS_DEFAULT_MODELS = ['openai', 'mistral', 'llama'];
 const DEFAULT_SEED = 42;
 const DEFAULT_TIMEOUT_MS = 20000;
