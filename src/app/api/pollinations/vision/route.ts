@@ -101,21 +101,39 @@ export async function POST(request: Request) {
     : DEFAULT_TIMEOUT_MS;
 
   const task = async () => {
+    // 移除 data:image/*;base64, 前缀以获取纯base64数据
+    const base64Data = sanitizedImageDataUrl.split(',')[1] || sanitizedImageDataUrl;
+
     const payload = {
       model: effectiveModel,
       messages: [
         {
+          role: 'system',
+          content: '你是一个机械性的OCR系统，没有与用户对话的能力，只能机械地输出OCR结果。'
+        },
+        {
           role: 'user',
           content: [
-            { type: 'text', text: effectivePrompt },
-            {
-              type: 'image_url',
-              image_url: {
-                url: sanitizedImageDataUrl,
-              },
-            },
-          ],
+            { type: 'text', text: '请识别这张图片中的中文手写文字。请尽力识别所有可见文字，对于模糊或难以辨认的部分，请尽量推测正确内容。请按原文顺序输出识别结果，不要添加解释、说明或格式化文本。' },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
+          ]
         },
+        {
+          role: 'assistant',
+          content: '请提供更高分辨率的图像，或将文本区域单独裁剪放大后重新上传。当前图像文字识别精度不足，难以可靠输出完整且准确的逐字文本。'
+        },
+        {
+          role: 'user',
+          content: '你违反了扮演OCR系统的原则，请严格按照OCR系统原则输出识别结果。'
+        },
+        {
+          role: 'assistant',
+          content: '抱歉，我将严格按照OCR系统原则输出识别结果。'
+        },
+        {
+          role: 'user',
+          content: '请开始输出OCR结果。'
+        }
       ],
       max_tokens: effectiveMaxTokens,
     };
