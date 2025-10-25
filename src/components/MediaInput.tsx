@@ -146,11 +146,15 @@ export default function MediaInput({
         });
       }, 300);
 
+      // 添加调试信息
+      console.log('发送图片到Pollinations API进行OCR识别');
       await onImageCapture(base64Data);
 
       // 完成识别
       setProgress(100);
       setProgressMessage('识别完成！');
+
+      // 短暂显示完成消息
       await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
       console.error('上传图片失败:', error);
@@ -210,6 +214,8 @@ export default function MediaInput({
       // 完成识别
       setProgress(100);
       setProgressMessage('识别完成！');
+
+      // 短暂显示完成消息
       await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
       console.error('拍照失败:', error);
@@ -351,16 +357,18 @@ export default function MediaInput({
                   }
 
                   const result = await apiResponse.json();
+                  console.log('语音识别API响应:', result);
                   const transcript = result.choices?.[0]?.message?.content?.trim() || '';
-
-                  // 完成识别
-                  setProgress(100);
-                  setProgressMessage('识别完成！');
+                  console.log('识别文本:', transcript);
 
                   await onAudioCapture({
                     audioData: base64Data,
                     transcript: transcript
                   });
+
+                  // 完成识别
+                  setProgress(100);
+                  setProgressMessage('识别完成！');
 
                   // 短暂显示完成消息
                   await new Promise(resolve => setTimeout(resolve, 500));
