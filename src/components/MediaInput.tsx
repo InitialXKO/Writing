@@ -21,17 +21,6 @@ interface MediaInputProps {
 
 export type { AudioCaptureResult };
 
-const createDeferred = () => {
-  let resolve: () => void;
-  const promise = new Promise<void>((res) => {
-    resolve = res;
-  });
-  return {
-    promise,
-    resolve: resolve!
-  };
-};
-
 export default function MediaInput({
   onImageCapture,
   onAudioCapture,
@@ -47,8 +36,6 @@ export default function MediaInput({
   const [recordingTime, setRecordingTime] = useState(0);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
-  const [interimTranscript, setInterimTranscript] = useState('');
-  const [finalTranscriptDisplay, setFinalTranscriptDisplay] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -57,11 +44,6 @@ export default function MediaInput({
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const completionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const wasProcessingRef = useRef(false);
-  const recognitionRef = useRef<any>(null);
-  const isRecognitionActiveRef = useRef<boolean>(false);
-  const recognitionEndDeferredRef = useRef<ReturnType<typeof createDeferred> | null>(null);
-  const finalTranscriptRef = useRef<string>('');
-  const interimTranscriptRef = useRef<string>('');
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
@@ -128,10 +110,6 @@ export default function MediaInput({
     wasProcessingRef.current = false;
     setProgress(0);
     setProgressMessage('');
-    setInterimTranscript('');
-    setFinalTranscriptDisplay('');
-    finalTranscriptRef.current = '';
-    interimTranscriptRef.current = '';
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -206,124 +184,24 @@ export default function MediaInput({
 
   const startRecording = async () => {
     try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      
-      if (!SpeechRecognition) {
-        alert('您的浏览器不支持语音识别，请使用 Chrome、Edge 或 Safari 浏览器');
-        return;
-      }
-
-      // 先请求麦克风权限，这样 SpeechRecognition 和 MediaRecorder 都可以使用
       console.log('→ 请求麦克风权限...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
       console.log('✓ 麦克风权限已获取');
 
-      // 初始化转录文本
-      finalTranscriptRef.current = '';
-      interimTranscriptRef.current = '';
-      setInterimTranscript('');
-      setFinalTranscriptDisplay('');
+      // 启动录音
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
 
-      // 创建并配置语音识别
-      const recognition = new SpeechRecognition();
-      recognitionRef.current = recognition;
-      
-      recognition.lang = 'zh-CN';
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
-
-      isRecognitionActiveRef.current = true;
-
-      recognition.onstart = () => {
-        console.log('✓ 语音识别已启动');
-      };
-
-      recognition.onresult = (event: any) => {
-        console.log('✓ 接收到语音识别结果, resultIndex:', event.resultIndex, 'results.length:', event.results.length);
-        let interimText = '';
-        let finalText = finalTranscriptRef.current;
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          const isFinal = event.results[i].isFinal;
-          console.log(`  结果 ${i}: "${transcript}" (${isFinal ? 'final' : 'interim'})`);
-          if (isFinal) {
-            finalText += transcript;
-          } else {
-            interimText += transcript;
-          }
-        }
-
-        finalTranscriptRef.current = finalText;
-        interimTranscriptRef.current = interimText;
-        setFinalTranscriptDisplay(finalText);
-        setInterimTranscript(interimText);
-        console.log('  累计 final:', finalText);
-        console.log('  当前 interim:', interimText);
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error('✗ 语音识别错误:', event.error, event);
-        if (event.error === 'not-allowed') {
-          alert('请允许麦克风权限以使用语音识别功能');
-          isRecognitionActiveRef.current = false;
-        } else if (event.error === 'audio-capture') {
-          console.error('✗ 无法访问麦克风，可能被其他程序占用');
-          isRecognitionActiveRef.current = false;
-        } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
-          console.warn(`⚠ 语音识别遇到问题: ${event.error}`);
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
         }
       };
 
-      recognition.onend = () => {
-        console.log('• 语音识别结束, isActive:', isRecognitionActiveRef.current);
-
-        if (recognitionEndDeferredRef.current) {
-          recognitionEndDeferredRef.current.resolve();
-          recognitionEndDeferredRef.current = null;
-        }
-
-        if (isRecognitionActiveRef.current && recognitionRef.current === recognition) {
-          console.log('→ 准备重启语音识别...');
-          setTimeout(() => {
-            if (recognitionRef.current === recognition && isRecognitionActiveRef.current) {
-              try {
-                recognition.start();
-                console.log('↻ 语音识别已重启');
-              } catch (error) {
-                console.error('✗ 重新启动语音识别失败:', error);
-                isRecognitionActiveRef.current = false;
-              }
-            }
-          }, 150);
-        } else {
-          if (recognitionRef.current === recognition) {
-            recognitionRef.current = null;
-          }
-        }
-      };
-
-      // 启动语音识别
-      console.log('→ 启动语音识别...');
-      recognition.start();
-
-      // TODO: 暂时禁用录音功能，只测试语音识别
-      // 启动录音（使用相同的音频流）
-      // const mediaRecorder = new MediaRecorder(stream);
-      // mediaRecorderRef.current = mediaRecorder;
-      // audioChunksRef.current = [];
-
-      // mediaRecorder.ondataavailable = (event) => {
-      //   if (event.data.size > 0) {
-      //     audioChunksRef.current.push(event.data);
-      //   }
-      // };
-
-      // mediaRecorder.onstop = null;
-      // mediaRecorder.start();
-      console.log('✓ 录音已开始（仅语音识别，不保存音频）');
+      mediaRecorder.start();
+      console.log('✓ 录音已开始');
       
       setIsRecording(true);
       setRecordingTime(0);
@@ -333,15 +211,6 @@ export default function MediaInput({
       }, 1000);
     } catch (error) {
       console.error('✗ 启动录音失败:', error);
-      isRecognitionActiveRef.current = false;
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {
-          console.error('停止语音识别失败:', e);
-        }
-        recognitionRef.current = null;
-      }
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach(track => track.stop());
         mediaStreamRef.current = null;
@@ -361,59 +230,88 @@ export default function MediaInput({
         recordingTimerRef.current = null;
       }
 
-      if (recognitionRef.current) {
-        console.log('→ 停止语音识别...');
-        console.log('  当前 finalTranscriptRef:', finalTranscriptRef.current);
-        console.log('  当前 interimTranscriptRef:', interimTranscriptRef.current);
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
         
-        isRecognitionActiveRef.current = false;
-        const recognitionInstance = recognitionRef.current;
-        const endDeferred = createDeferred();
-        recognitionEndDeferredRef.current = endDeferred;
+        await new Promise<void>((resolve) => {
+          if (mediaRecorderRef.current) {
+            mediaRecorderRef.current.onstop = async () => {
+              const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+              console.log('✓ 录音完成，音频大小:', audioBlob.size);
 
-        try {
-          recognitionInstance.stop();
-        } catch (error) {
-          console.error('停止语音识别时发生错误:', error);
-          recognitionEndDeferredRef.current = null;
-        }
+              setIsProcessing(true);
+              setProgressMessage('正在转录语音...');
 
-        if (recognitionEndDeferredRef.current) {
-          await Promise.race([
-            recognitionEndDeferredRef.current.promise,
-            new Promise(resolve => setTimeout(resolve, 1000))
-          ]);
-        }
+              try {
+                // 将音频转换为 base64
+                const reader = new FileReader();
+                const base64Promise = new Promise<string>((resolve, reject) => {
+                  reader.onload = () => {
+                    const result = reader.result as string;
+                    // 移除 data:audio/webm;base64, 前缀
+                    const base64Data = result.split(',')[1];
+                    resolve(base64Data);
+                  };
+                  reader.onerror = reject;
+                });
+                reader.readAsDataURL(audioBlob);
+                const base64Audio = await base64Promise;
 
-        recognitionEndDeferredRef.current = null;
-        recognitionRef.current = null;
-        console.log('✓ 语音识别已停止');
-        console.log('  最终 finalTranscriptRef:', finalTranscriptRef.current);
-        console.log('  最终 interimTranscriptRef:', interimTranscriptRef.current);
-      }
+                console.log('→ 调用 Pollinations Speech-to-Text API...');
+                
+                // 调用 Pollinations API
+                const response = await fetch('https://text.pollinations.ai/openai', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model: 'openai-audio',
+                    messages: [{
+                      role: 'user',
+                      content: [
+                        { type: 'text', text: '请转录这段音频中的中文内容：' },
+                        {
+                          type: 'input_audio',
+                          input_audio: {
+                            data: base64Audio,
+                            format: 'webm'
+                          }
+                        }
+                      ]
+                    }]
+                  })
+                });
 
-      const combinedTranscript = (
-        `${finalTranscriptRef.current} ${interimTranscriptRef.current}`
-          .replace(/\s+/g, ' ')
-          .trim()
-      );
+                if (!response.ok) {
+                  throw new Error(`API 请求失败: ${response.status}`);
+                }
 
-      setIsProcessing(true);
-      setProgressMessage('正在处理语音识别结果...');
+                const result = await response.json();
+                const transcript = result.choices?.[0]?.message?.content || '';
+                console.log('✓ 转录完成:', transcript);
 
-      try {
-        console.log('🎤 最终识别结果:', combinedTranscript);
-        await onAudioCapture({
-          audioData: '',
-          transcript: combinedTranscript
+                // 将音频 blob 转换为 data URL 供播放
+                const audioUrl = URL.createObjectURL(audioBlob);
+
+                await onAudioCapture({
+                  audioData: audioUrl,
+                  transcript: transcript.trim()
+                });
+              } catch (error) {
+                console.error('✗ 语音转录失败:', error);
+                alert('语音转录失败，请重试');
+              } finally {
+                setIsProcessing(false);
+                setProgressMessage('');
+              }
+
+              resolve();
+            };
+          } else {
+            resolve();
+          }
         });
-      } finally {
-        setIsProcessing(false);
-        setProgressMessage('');
-        finalTranscriptRef.current = '';
-        interimTranscriptRef.current = '';
-        setInterimTranscript('');
-        setFinalTranscriptDisplay('');
       }
 
       if (mediaStreamRef.current) {
@@ -554,22 +452,6 @@ export default function MediaInput({
         )}
       </div>
 
-      {isRecording && (finalTranscriptDisplay || interimTranscript) && (
-        <div className="mt-4 p-4 bg-morandi-pink-50 border border-morandi-pink-200 rounded-xl">
-          <h4 className="text-sm font-medium text-morandi-pink-800 mb-2 flex items-center gap-2">
-            <Mic className="w-4 h-4" />
-            实时识别
-          </h4>
-          <div className="text-sm text-morandi-gray-700 space-y-1">
-            {finalTranscriptDisplay && (
-              <p className="font-medium">{finalTranscriptDisplay}</p>
-            )}
-            {interimTranscript && (
-              <p className="text-morandi-gray-500 italic">{interimTranscript}</p>
-            )}
-          </div>
-        </div>
-      )}
 
       <input
         ref={fileInputRef}
