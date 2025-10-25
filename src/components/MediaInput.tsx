@@ -33,21 +33,18 @@ export default function MediaInput({
 }: MediaInputProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
   const [transcript, setTranscript] = useState('');
   const [finalTranscript, setFinalTranscript] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const completionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const wasProcessingRef = useRef(false);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
   const recognitionRef = useRef<any>(null);
+  const finalTranscriptRef = useRef('');
+  const isStoppingRef = useRef(false);
 
   useEffect(() => {
     const isActive = isProcessing || isRecognizing;
@@ -122,6 +119,26 @@ export default function MediaInput({
     }
   };
 
+  const finalizeRecognition = async () => {
+    const finalText = finalTranscriptRef.current.trim();
+
+    setIsProcessing(true);
+    setProgressMessage('正在处理语音识别结果...');
+
+    try {
+      await onAudioCapture({
+        audioData: '',
+        transcript: finalText,
+      });
+    } finally {
+      setIsProcessing(false);
+      setProgressMessage('');
+      setTranscript('');
+      setFinalTranscript('');
+      finalTranscriptRef.current = '';
+    }
+  };
+
   const handleCancelProcessing = () => {
     resetProcessingState();
     onCancelRecognition?.();
@@ -193,6 +210,11 @@ export default function MediaInput({
       return;
     }
 
+    setTranscript('');
+    setFinalTranscript('');
+    finalTranscriptRef.current = '';
+    isStoppingRef.current = false;
+
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
 
@@ -203,29 +225,45 @@ export default function MediaInput({
 
     recognition.onresult = (event: any) => {
       let interimText = '';
-      let finalText = finalTranscript;
+      let finalText = finalTranscriptRef.current;
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalText += transcript;
+        const result = event.results[i];
+        const text = result[0].transcript;
+        if (result.isFinal) {
+          finalText += text;
         } else {
-          interimText += transcript;
+          interimText += text;
         }
       }
 
+      finalTranscriptRef.current = finalText;
       setFinalTranscript(finalText);
       setTranscript(finalText + interimText);
     };
 
     recognition.onerror = (event: any) => {
+      if (event.error === 'aborted') {
+        return;
+      }
       console.error('语音识别错误:', event.error);
       alert(`语音识别出错: ${event.error}`);
+      isStoppingRef.current = false;
+      recognitionRef.current = null;
       setIsRecording(false);
     };
 
     recognition.onend = () => {
       setIsRecording(false);
+      const shouldFinalize = isStoppingRef.current;
+      isStoppingRef.current = false;
+      recognitionRef.current = null;
+
+      if (shouldFinalize) {
+        finalizeRecognition().catch((error) => {
+          console.error('处理语音识别结果失败:', error);
+        });
+      }
     };
 
     recognition.start();
@@ -233,34 +271,13 @@ export default function MediaInput({
   };
 
 
-  const stopRecording = async () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsRecording(false);
-      
-      console.log('🎤 最终识别结果:', finalTranscript);
-      
-      setIsProcessing(true);
-      setProgressMessage('正在处理语音识别结果...');
-      
-      try {
-        await onAudioCapture({
-          audioData: '',
-          transcript: finalTranscript
-        });
-      } finally {
-        setIsProcessing(false);
-        setProgressMessage('');
-        setTranscript('');
-        setFinalTranscript('');
-      }
+  const stopRecording = () => {
+    if (!recognitionRef.current) {
+      return;
     }
-  };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    isStoppingRef.current = true;
+    recognitionRef.current.stop();
   };
 
   const progressPercentage = Math.min(Math.round(progress), 100);
