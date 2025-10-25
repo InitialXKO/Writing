@@ -49,18 +49,29 @@ export default function CompositionPaper({
     }
   };
 
-  const [charsPerLine, setCharsPerLine] = useState(getCharsPerLine());
+  // 使用固定默认值避免服务器端和客户端不匹配
+  const [charsPerLine, setCharsPerLine] = useState(20);
   const linesPerPage = 25;
 
   // 监听窗口大小变化
   useEffect(() => {
     const handleResize = () => {
-      setCharsPerLine(getCharsPerLine());
+      const newCharsPerLine = getCharsPerLine();
+      if (newCharsPerLine !== charsPerLine) {
+        setCharsPerLine(newCharsPerLine);
+      }
     };
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    if (typeof window !== 'undefined') {
+      handleResize(); // 初始化时设置正确的值
+      window.addEventListener('resize', handleResize);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', handleResize);
+      }
+    };
+  }, [charsPerLine]);
 
   // 根据容器宽度计算格子大小，确保格子是正方形
   const calculateCellSize = (currentCharsPerLine: number = charsPerLine) => {
@@ -78,14 +89,18 @@ export default function CompositionPaper({
     return Math.max(20, cellSize);
   };
 
-  const [cellSize, setCellSize] = useState(calculateCellSize());
+  // 使用固定默认值避免服务器端和客户端不匹配
+  const [cellSize, setCellSize] = useState(36);
 
-  // 在客户端重新计算一次格子大小，确保与服务器端一致
+  // 在客户端重新计算一次格子大小
   useEffect(() => {
     if (typeof window !== 'undefined' && containerRef.current) {
-      setCellSize(calculateCellSize(charsPerLine));
+      const newSize = calculateCellSize(charsPerLine);
+      if (newSize !== cellSize) {
+        setCellSize(newSize);
+      }
     }
-  }, [charsPerLine]);
+  }, [charsPerLine, cellSize]);
 
   // 计算行间距，确保它正确更新
   const rowGap = Math.max(2, Math.floor(cellSize * 0.2)); // 行间距为格子大小的20%
@@ -760,7 +775,7 @@ export default function CompositionPaper({
                   borderTop: '1px solid #d97706', // 上边框
                   borderBottom: '1px solid #d97706', // 下边框
                   borderRight: '1px solid #d97706', // 右边框
-                  ...(isLineStart && { borderLeft: '1px solid #d97706' }), // 每行起始格子的左边框
+                  borderLeft: '1px solid #d97706', // 始终渲染左边框以避免SSR/CSR不匹配
                   height: `${cellSize}px`, // 恢复原始高度
                   boxSizing: 'border-box', // 使用border-box来包含边框和padding
                   backgroundColor: 'white', // 确保背景色为白色
@@ -772,7 +787,7 @@ export default function CompositionPaper({
                 }}
               >
                 {/* 字符显示 */}
-                {char && char !== '\n' && (
+                {char && char !== '\n' ? (
                   <span
                     className="text-xl leading-none"
                     style={{
@@ -790,14 +805,14 @@ export default function CompositionPaper({
                   >
                     {char}
                   </span>
-                )}
+                ) : null}
 
                 {/* 每百字标记 */}
-                {isHundredMark && (
+                {isHundredMark ? (
                   <div className="absolute bottom-0 right-0 text-[0.6rem] text-blue-600 font-bold bg-white px-0.5 rounded shadow transform translate-y-1/2 translate-x-1/2">
                     {index + 1}
                   </div>
-                )}
+                ) : null}
               </div>
             );
           })}

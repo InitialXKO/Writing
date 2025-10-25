@@ -68,7 +68,7 @@ export default function Notification({ type, message, duration = 5000, onClose }
   if (!isVisible) return null;
 
   return (
-    <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl border shadow-lg transition-all duration-300 transform ${getBackgroundColor()} ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}`}>
+    <div className={`relative z-50 p-4 rounded-xl border shadow-lg transition-all duration-300 transform ${getBackgroundColor()} ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}`}>
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0 mt-0.5">
           {getIcon()}

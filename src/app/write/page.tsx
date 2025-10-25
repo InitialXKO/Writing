@@ -1562,12 +1562,8 @@ ${simplifiedHistory}
   );
 }
 
-import { Suspense } from 'react';
-
 export default function WritePage() {
   return (
-    <Suspense fallback={<div>加载中...</div>}>
-      <WriteContent />
-    </Suspense>
+    <WriteContent />
   );
 }

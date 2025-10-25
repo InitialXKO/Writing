@@ -235,7 +235,20 @@ export default function MediaInput({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
-      const mediaRecorder = new MediaRecorder(stream);
+      // 检查支持的音频格式，优先使用支持的格式
+      let mimeType = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/webm';
+      }
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/mp4';
+      }
+      // 如果都不支持，使用默认配置
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = '';
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -263,6 +276,79 @@ export default function MediaInput({
     }
   };
 
+  // 将录制的音频数据转换为WAV格式
+  const convertToWav = async (blob: Blob): Promise<Blob> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const audioContext = new AudioContext();
+        const arrayBuffer = await blob.arrayBuffer();
+
+        // 解码音频数据
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        // 创建WAV文件头和数据
+        const wavBuffer = encodeWav(audioBuffer);
+
+        // 创建新的WAV Blob
+        const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+
+        audioContext.close();
+        resolve(wavBlob);
+      } catch (error) {
+        console.error('音频格式转换失败:', error);
+        reject(error);
+      }
+    });
+  };
+
+  // WAV编码函数
+  const encodeWav = (audioBuffer: AudioBuffer): ArrayBuffer => {
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const length = audioBuffer.length;
+    const bitsPerSample = 16;
+    const bytesPerSample = bitsPerSample / 8;
+    const blockAlign = numChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = length * numChannels * bytesPerSample;
+
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    // WAV文件头
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true); // fmt chunk size
+    view.setUint16(20, 1, true); // PCM format
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    // 写入音频数据
+    let offset = 44;
+    for (let i = 0; i < length; i++) {
+      for (let channel = 0; channel < numChannels; channel++) {
+        const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(channel)[i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+
+    return buffer;
+  };
+
+  const writeString = (view: DataView, offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+
   const stopRecording = async () => {
     if (isRecording) {
       setIsRecording(false);
@@ -281,111 +367,134 @@ export default function MediaInput({
         await new Promise<void>((resolve) => {
           if (mediaRecorderRef.current) {
             mediaRecorderRef.current.onstop = async () => {
-              const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-              const reader = new FileReader();
-              reader.onload = async (event) => {
-                const base64Data = event.target?.result as string;
+              try {
+                // 创建录制的音频Blob
+                const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorderRef.current?.mimeType || 'audio/webm' });
 
                 setIsProcessing(true);
-                setProgressMessage('正在处理语音识别结果...');
+                setProgressMessage('正在转换音频格式...');
+                setProgress(10);
 
-                try {
-                  // 设置初始进度
-                  setProgress(0);
-                  setProgressMessage('正在上传音频...');
+                console.log('原始音频格式:', audioBlob.type, '大小:', audioBlob.size);
 
-                  // 模拟上传进度
-                  const uploadInterval = setInterval(() => {
-                    setProgress(prev => {
-                      if (prev >= 40) {
-                        clearInterval(uploadInterval);
-                        return prev;
-                      }
-                      return prev + Math.random() * 15 + 5;
-                    });
-                  }, 200);
+                // 转换为WAV格式
+                const wavBlob = await convertToWav(audioBlob);
+                console.log('转换后的WAV格式:', wavBlob.type, '大小:', wavBlob.size);
 
-                  // 等待上传进度达到40%
-                  await new Promise(resolve => setTimeout(resolve, 1000));
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                  const base64Data = event.target?.result as string;
 
-                  // 移除 data:audio/wav;base64, 前缀以获取纯base64数据
-                  const pureBase64Data = base64Data.split(',')[1] || base64Data;
+                  try {
+                    // 设置初始进度
+                    setProgress(20);
+                    setProgressMessage('正在上传音频...');
 
-                  // 更新进度到60%
-                  setProgress(60);
-                  setProgressMessage('正在进行语音识别...');
-
-                  // 模拟识别进度
-                  const recognitionInterval = setInterval(() => {
-                    setProgress(prev => {
-                      if (prev >= 90) {
-                        clearInterval(recognitionInterval);
-                        return prev;
-                      }
-                      return prev + Math.random() * 8 + 4;
-                    });
-                  }, 300);
-
-                  // 使用Pollinations API进行语音识别
-                  const payload = {
-                    model: 'openai-audio',
-                    messages: [{
-                      role: 'user',
-                      content: [
-                        { type: 'text', text: '请转录这段音频中的中文内容：' },
-                        {
-                          type: 'input_audio',
-                          input_audio: {
-                            data: pureBase64Data,
-                            format: 'wav'
-                          }
+                    // 模拟上传进度
+                    const uploadInterval = setInterval(() => {
+                      setProgress(prev => {
+                        if (prev >= 40) {
+                          clearInterval(uploadInterval);
+                          return prev;
                         }
-                      ]
-                    }]
-                  };
+                        return prev + Math.random() * 15 + 5;
+                      });
+                    }, 200);
 
-                  console.log('发送语音识别请求到Pollinations API:', payload);
-                  const apiResponse = await fetch('https://text.pollinations.ai/openai?referrer=growsnova.com', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                  });
+                    // 等待上传进度达到40%
+                    await new Promise(resolve => setTimeout(resolve, 1000));
 
-                  console.log('API响应状态:', apiResponse.status);
-                  if (!apiResponse.ok) {
-                    const errorText = await apiResponse.text();
-                    console.error('API请求失败:', apiResponse.status, apiResponse.statusText, errorText);
-                    throw new Error(`API请求失败: ${apiResponse.status} ${apiResponse.statusText}`);
+                    // 移除 data:audio/wav;base64, 前缀以获取纯base64数据
+                    const pureBase64Data = base64Data.split(',')[1] || base64Data;
+
+                    // 更新进度到60%
+                    setProgress(60);
+                    setProgressMessage('正在进行语音识别...');
+
+                    // 模拟识别进度
+                    const recognitionInterval = setInterval(() => {
+                      setProgress(prev => {
+                        if (prev >= 90) {
+                          clearInterval(recognitionInterval);
+                          return prev;
+                        }
+                        return prev + Math.random() * 8 + 4;
+                      });
+                    }, 300);
+
+                    // 使用Pollinations API进行语音识别
+                    // API只支持wav和mp3格式，我们使用wav格式
+                    const payload = {
+                      model: 'openai-audio',
+                      messages: [{
+                        role: 'user',
+                        content: [
+                          { type: 'text', text: '请转录这段音频中的中文内容：' },
+                          {
+                            type: 'input_audio',
+                            input_audio: {
+                              data: pureBase64Data,
+                              format: 'wav'
+                            }
+                          }
+                        ]
+                      }]
+                    };
+
+                    console.log('发送语音识别请求到Pollinations API，数据大小:', pureBase64Data.length);
+                    const apiResponse = await fetch('https://text.pollinations.ai/openai?referrer=growsnova.com', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify(payload)
+                    });
+
+                    console.log('API响应状态:', apiResponse.status);
+                    if (!apiResponse.ok) {
+                      const errorText = await apiResponse.text();
+                      console.error('API请求失败:', apiResponse.status, apiResponse.statusText, errorText);
+                      throw new Error(`API请求失败: ${apiResponse.status} ${apiResponse.statusText}`);
+                    }
+
+                    const result = await apiResponse.json();
+                    console.log('语音识别API响应:', result);
+                    const transcript = result.choices?.[0]?.message?.content?.trim() || '';
+                    console.log('识别文本:', transcript);
+
+                    await onAudioCapture({
+                      audioData: base64Data,
+                      transcript: transcript
+                    });
+
+                    // 完成识别
+                    setProgress(100);
+                    setProgressMessage('识别完成！');
+
+                    // 短暂显示完成消息
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                  } catch (error) {
+                    console.error('语音识别处理失败:', error);
+                    alert('语音识别失败，请重试');
+                  } finally {
+                    setIsProcessing(false);
+                    setProgressMessage('');
+                    setProgress(0);
+                    setFinalTranscriptDisplay('');
                   }
 
-                  const result = await apiResponse.json();
-                  console.log('语音识别API响应:', result);
-                  const transcript = result.choices?.[0]?.message?.content?.trim() || '';
-                  console.log('识别文本:', transcript);
+                  resolve();
+                };
+                reader.readAsDataURL(wavBlob);
 
-                  await onAudioCapture({
-                    audioData: base64Data,
-                    transcript: transcript
-                  });
-
-                  // 完成识别
-                  setProgress(100);
-                  setProgressMessage('识别完成！');
-
-                  // 短暂显示完成消息
-                  await new Promise(resolve => setTimeout(resolve, 500));
-                } finally {
-                  setIsProcessing(false);
-                  setProgressMessage('');
-                  setProgress(0);
-                  setFinalTranscriptDisplay('');
-                }
-
+              } catch (error) {
+                console.error('音频处理失败:', error);
+                alert('音频处理失败，请重试');
+                setIsProcessing(false);
+                setProgressMessage('');
+                setProgress(0);
                 resolve();
-              };
-              reader.readAsDataURL(audioBlob);
+              }
 
               if (mediaStreamRef.current) {
                 mediaStreamRef.current.getTracks().forEach(track => track.stop());
