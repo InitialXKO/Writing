@@ -213,11 +213,6 @@ export default function MediaInput({
         return;
       }
 
-      console.log('→ 请求麦克风权限...');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      console.log('✓ 麦克风权限已获取');
-
       finalTranscriptRef.current = '';
       interimTranscriptRef.current = '';
       setInterimTranscript('');
@@ -238,13 +233,15 @@ export default function MediaInput({
       };
 
       recognition.onresult = (event: any) => {
-        console.log('✓ 接收到语音识别结果');
+        console.log('✓ 接收到语音识别结果, resultIndex:', event.resultIndex, 'results.length:', event.results.length);
         let interimText = '';
         let finalText = finalTranscriptRef.current;
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
+          const isFinal = event.results[i].isFinal;
+          console.log(`  结果 ${i}: "${transcript}" (${isFinal ? 'final' : 'interim'})`);
+          if (isFinal) {
             finalText += transcript;
           } else {
             interimText += transcript;
@@ -255,6 +252,8 @@ export default function MediaInput({
         interimTranscriptRef.current = interimText;
         setFinalTranscriptDisplay(finalText);
         setInterimTranscript(interimText);
+        console.log('  累计 final:', finalText);
+        console.log('  当前 interim:', interimText);
       };
 
       recognition.onerror = (event: any) => {
@@ -271,7 +270,7 @@ export default function MediaInput({
       };
 
       recognition.onend = () => {
-        console.log('• 语音识别结束');
+        console.log('• 语音识别结束, isActive:', isRecognitionActiveRef.current);
 
         if (recognitionEndDeferredRef.current) {
           recognitionEndDeferredRef.current.resolve();
@@ -279,7 +278,7 @@ export default function MediaInput({
         }
 
         if (isRecognitionActiveRef.current && recognitionRef.current === recognition) {
-          console.log('→ 准备重启语音识别');
+          console.log('→ 准备重启语音识别...');
           setTimeout(() => {
             if (recognitionRef.current === recognition && isRecognitionActiveRef.current) {
               try {
@@ -291,13 +290,20 @@ export default function MediaInput({
               }
             }
           }, 150);
-        } else if (recognitionRef.current === recognition) {
-          recognitionRef.current = null;
+        } else {
+          if (recognitionRef.current === recognition) {
+            recognitionRef.current = null;
+          }
         }
       };
 
       console.log('→ 启动语音识别...');
       recognition.start();
+
+      console.log('→ 请求麦克风权限...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      console.log('✓ 麦克风权限已获取');
 
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
@@ -351,6 +357,9 @@ export default function MediaInput({
 
       if (recognitionRef.current) {
         console.log('→ 停止语音识别...');
+        console.log('  当前 finalTranscriptRef:', finalTranscriptRef.current);
+        console.log('  当前 interimTranscriptRef:', interimTranscriptRef.current);
+        
         isRecognitionActiveRef.current = false;
         const recognitionInstance = recognitionRef.current;
         const endDeferred = createDeferred();
@@ -373,6 +382,8 @@ export default function MediaInput({
         recognitionEndDeferredRef.current = null;
         recognitionRef.current = null;
         console.log('✓ 语音识别已停止');
+        console.log('  最终 finalTranscriptRef:', finalTranscriptRef.current);
+        console.log('  最终 interimTranscriptRef:', interimTranscriptRef.current);
       }
 
       if (mediaRecorderRef.current) {
@@ -395,6 +406,7 @@ export default function MediaInput({
                 setProgressMessage('正在处理语音识别结果...');
                 
                 try {
+                  console.log('🎤 最终识别结果:', combinedTranscript);
                   await onAudioCapture({
                     audioData: base64Data,
                     transcript: combinedTranscript
