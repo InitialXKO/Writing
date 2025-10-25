@@ -665,7 +665,6 @@ function WriteContent() {
       setAudioUrl('');
       setContentType('image');
       setTranscribedText('');
-      setContent('');
 
       setIsRecognizing(true);
       if (typeof showWarning === 'function') {
@@ -763,11 +762,95 @@ function WriteContent() {
 
       if (recognizedText) {
         setTranscribedText(recognizedText);
-        setContent(recognizedText);
-        console.log('✓ 识别成功，文本长度:', recognizedText.length);
-        if (typeof showSuccess === 'function') {
+
+        const currentContent = content.trim();
+        
+        if (typeof showWarning === 'function') {
+          showWarning('正在智能校正标点和错别字...');
+        }
+
+        try {
+          let promptContent: string;
+          
+          if (currentContent) {
+            // 稿纸有内容，让AI合并并去重
+            promptContent = `你是小学六年级作文指导老师。现在学生通过拍照手写作文继续写作。
+
+稿纸已有内容：
+${currentContent}
+
+新识别的手写内容：
+${recognizedText}
+
+请完成以下任务：
+1. 仔细对比两段内容，识别出哪些是重复的，哪些是新增的
+2. 如果手写内容包含了稿纸已有的部分，只保留新增的部分
+3. 将新增内容接在稿纸内容后面，形成完整连贯的文章
+4. 校正标点符号（确保句号、逗号、问号等使用正确）
+5. 纠正明显的OCR识别错误和同音字错误
+6. 严格保持学生原有的语气、用词和表达方式
+7. 不要改变文章的意思和风格
+
+重要：只输出校正后的完整文章内容，不要重复内容，不要添加任何解释或评论。`;
+          } else {
+            // 稿纸为空，只需校正新内容
+            promptContent = `请对以下手写文字识别文本进行校正：
+
+${recognizedText}
+
+要求：
+1. 校正标点符号
+2. 纠正明显的OCR识别错误和同音字错误
+3. 保持原有语气和表达方式
+4. 只输出校正后的文本，不要添加解释
+
+校正后的文本：`;
+          }
+
+          const messages: ChatMessage[] = [
+            {
+              role: 'system',
+              content: '你是一位小学六年级作文指导老师，擅长校正标点符号和OCR识别错误，同时严格保持学生原有的语气和表达方式。',
+            },
+            {
+              role: 'user',
+              content: promptContent,
+            },
+          ];
+
+          const usingCustomApi = isNonEmptyString(aiConfig?.apiKey);
+          let correctedText: string;
+
+          if (usingCustomApi && aiConfig) {
+            correctedText = await callOpenAIChatCompletion(messages, aiConfig, {
+              temperature: 0.3,
+              maxTokens: 2000,
+            });
+          } else {
+            const { content: pollinationsResponse } = await callPollinationsChatWithFallback(messages, {
+              preferredModel: 'openai',
+            });
+            correctedText = pollinationsResponse;
+          }
+
+          const finalText = correctedText.trim();
+          console.log('✓ AI校正完成，原文长度:', currentContent.length, '识别长度:', recognizedText.length, '结果长度:', finalText.length);
+          setContent(finalText);
+          setTranscribedText(finalText);
+
           const method = usedFallback ? '（使用备用识别方案）' : '';
-          showSuccess(`手写文字识别成功${method}！`);
+          if (typeof showSuccess === 'function') {
+            showSuccess(`手写文字识别成功${method}，已智能校正！`);
+          }
+        } catch (error) {
+          console.error('AI校正失败:', error);
+          // AI校正失败时，直接使用识别内容（不合并，避免重复）
+          setContent(recognizedText);
+          setTranscribedText(recognizedText);
+          const method = usedFallback ? '（使用备用识别方案）' : '';
+          if (typeof showWarning === 'function') {
+            showWarning(`手写文字识别成功${method}，但智能校正失败`);
+          }
         }
       } else {
         console.warn('⚠ 识别完成但未获取到文本');
