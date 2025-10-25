@@ -875,7 +875,6 @@ ${normalizedTranscript}
                 messages,
                 {
                   preferredModel: 'openai',
-                  temperature: 0.3,
                 }
               );
               correctedText = pollinationsResponse;
