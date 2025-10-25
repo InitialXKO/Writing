@@ -805,17 +805,32 @@ function WriteContent() {
   // 处理音频录制
   const handleAudioCapture = async ({ audioData, transcript }: AudioCaptureResult) => {
     try {
-      setAudioUrl(audioData);
-      setContentType('audio');
+      console.log('📝 handleAudioCapture 收到参数:', {
+        audioDataLength: audioData?.length || 0,
+        transcriptLength: transcript?.length || 0,
+        transcript: transcript
+      });
 
       const normalizedTranscript = transcript?.trim();
+      console.log('📝 归一化后的转录文本:', normalizedTranscript);
+
+      if (audioData) {
+        setAudioUrl(audioData);
+        setContentType('audio');
+      } else {
+        setAudioUrl('');
+        setContentType('text');
+      }
+
       if (normalizedTranscript) {
         setTranscribedText(normalizedTranscript);
         setContent(normalizedTranscript);
+        console.log('✅ 设置内容成功');
         if (typeof showSuccess === 'function') {
           showSuccess('语音识别成功！');
         }
       } else {
+        console.warn('⚠️ 转录文本为空');
         setTranscribedText('');
         setContent('');
         if (typeof showWarning === 'function') {

@@ -1,10 +1,4 @@
 {
   "version": 2,
-  "public": true,
-  "functions": {
-    "src/app/api/recognize/route.ts": {
-      "memory": 1024,
-      "maxDuration": 300
-    }
-  }
+  "public": true
 }
