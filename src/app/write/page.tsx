@@ -688,8 +688,8 @@ function WriteContent() {
         const originalWidth = imageBitmap.width;
         const originalHeight = imageBitmap.height;
 
-        if (originalWidth > MAX_DIMENSION || originalHeight > MAX_DIMENSION) {
-          const scale = Math.min(MAX_DIMENSION / originalWidth, MAX_DIMENSION / originalHeight);
+        if (originalWidth > MAX_DIMENSION) {
+          const scale = MAX_DIMENSION / originalWidth;
           const targetWidth = Math.round(originalWidth * scale);
           const targetHeight = Math.round(originalHeight * scale);
 
