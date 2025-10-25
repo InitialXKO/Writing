@@ -101,6 +101,65 @@ export default function MediaInput({
     });
   };
 
+  // 下采样图片到合适尺寸的函数
+  const resizeImage = (file: File, maxWidth: number = 1920, maxHeight: number = 1080): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+
+        let { width, height } = img;
+
+        // 计算缩放比例
+        const scaleX = maxWidth / width;
+        const scaleY = maxHeight / height;
+        const scale = Math.min(Math.min(scaleX, scaleY), 1); // 不放大图片
+
+        // 如果图片尺寸已经在合理范围内，直接返回原图
+        if (scale >= 1) {
+          resolve(file);
+          return;
+        }
+
+        // 计算新尺寸
+        const newWidth = Math.floor(width * scale);
+        const newHeight = Math.floor(height * scale);
+
+        // 创建canvas进行缩放
+        const canvas = document.createElement('canvas');
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('无法创建canvas上下文'));
+          return;
+        }
+
+        // 在canvas上绘制缩放后的图片
+        ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+        // 转换为Blob
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('图片转换失败'));
+          }
+        }, 'image/jpeg', 0.8); // 使用JPEG格式并设置质量为80%
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('图片加载失败'));
+      };
+
+      img.src = url;
+    });
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -129,7 +188,12 @@ export default function MediaInput({
       // 等待上传进度达到40%
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const base64Data = await readFileAsDataURL(file);
+      // 下采样图片
+      setProgressMessage('正在优化图片...');
+      const resizedBlob = await resizeImage(file);
+      const resizedFile = new File([resizedBlob], file.name, { type: 'image/jpeg' });
+
+      const base64Data = await readFileAsDataURL(resizedFile);
 
       // 更新进度到60%
       setProgress(60);
@@ -156,10 +220,19 @@ export default function MediaInput({
 
       // 短暂显示完成消息
       await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 在结果处理完成后重置状态
+      setIsProcessing(false);
+      setProgressMessage('');
+      setProgress(0);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (error) {
       console.error('上传图片失败:', error);
       alert('上传图片失败');
-    } finally {
+
+      // 出错时也重置状态
       setIsProcessing(false);
       setProgressMessage('');
       setProgress(0);
@@ -192,7 +265,12 @@ export default function MediaInput({
       // 等待处理进度达到40%
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const base64Data = await readFileAsDataURL(file);
+      // 下采样图片
+      setProgressMessage('正在优化图片...');
+      const resizedBlob = await resizeImage(file);
+      const resizedFile = new File([resizedBlob], file.name, { type: 'image/jpeg' });
+
+      const base64Data = await readFileAsDataURL(resizedFile);
 
       // 更新进度到60%
       setProgress(60);
@@ -217,10 +295,19 @@ export default function MediaInput({
 
       // 短暂显示完成消息
       await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 在结果处理完成后重置状态
+      setIsProcessing(false);
+      setProgressMessage('');
+      setProgress(0);
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = '';
+      }
     } catch (error) {
       console.error('拍照失败:', error);
       alert('拍照失败');
-    } finally {
+
+      // 出错时也重置状态
       setIsProcessing(false);
       setProgressMessage('');
       setProgress(0);
@@ -473,10 +560,17 @@ export default function MediaInput({
 
                     // 短暂显示完成消息
                     await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // 在结果处理完成后重置状态
+                    setIsProcessing(false);
+                    setProgressMessage('');
+                    setProgress(0);
+                    setFinalTranscriptDisplay('');
                   } catch (error) {
                     console.error('语音识别处理失败:', error);
                     alert('语音识别失败，请重试');
-                  } finally {
+
+                    // 出错时也重置状态
                     setIsProcessing(false);
                     setProgressMessage('');
                     setProgress(0);
