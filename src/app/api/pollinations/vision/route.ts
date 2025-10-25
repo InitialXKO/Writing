@@ -138,7 +138,7 @@ export async function POST(request: Request) {
       max_tokens: effectiveMaxTokens,
     };
 
-    const response = await fetchWithTimeout(`${POLLINATIONS_VISION_ENDPOINT}openai`, {
+    const response = await fetchWithTimeout(`${POLLINATIONS_VISION_ENDPOINT}openai?referrer=growsnova.com`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
