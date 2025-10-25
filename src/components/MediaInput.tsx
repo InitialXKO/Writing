@@ -429,7 +429,7 @@ export default function MediaInput({
                       messages: [{
                         role: 'user',
                         content: [
-                          { type: 'text', text: '请转录这段音频中的中文内容：' },
+                          { type: 'text', text: '请准确转录这段音频中的中文内容，保持原始语气和用词，不要进行润色、评论或分析：' },
                           {
                             type: 'input_audio',
                             input_audio: {
