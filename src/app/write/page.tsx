@@ -702,10 +702,8 @@ function WriteContent() {
         if (typeof showSuccess === 'function') {
           showSuccess('语音识别成功！');
         }
-        // 延迟重置进度条状态，确保用户能看到识别结果
-        setTimeout(() => {
-          handleClearMedia();
-        }, 1500);
+        // 立即重置进度条状态
+        handleClearMedia();
       } else {
         handleClearMedia();
         setTranscribedText('');
@@ -1387,10 +1385,10 @@ ${simplifiedHistory}
               </div>
             </div>
 
-            {/* 处理完成时自动隐藏，不需要确认按钮 */}
+            {/* 处理完成时立即隐藏，不需要确认按钮 */}
             {showMediaCompletion && (
               <div className="mt-4 text-center text-sm text-morandi-gray-500">
-                处理完成，进度框将自动关闭...
+                处理完成
               </div>
             )}
           </div>
@@ -1539,18 +1537,11 @@ ${simplifiedHistory}
                       onProgressComplete={(success, message) => {
                         if (success) {
                           setShowMediaCompletion(true);
-                          // 清除之前的定时器（如果有的话）
-                          if (mediaCompletionTimeoutRef.current) {
-                            clearTimeout(mediaCompletionTimeoutRef.current);
-                          }
-                          // 成功后2秒自动隐藏进度框
-                          mediaCompletionTimeoutRef.current = setTimeout(() => {
-                            setIsMediaProcessing(false);
-                            setMediaProgress(0);
-                            setMediaProgressMessage('');
-                            setShowMediaCompletion(false);
-                            mediaCompletionTimeoutRef.current = null;
-                          }, 2000);
+                          // 立即隐藏进度框，不使用延迟
+                          setIsMediaProcessing(false);
+                          setMediaProgress(0);
+                          setMediaProgressMessage('');
+                          setShowMediaCompletion(false);
                         } else {
                           // 清除之前的定时器（如果有的话）
                           if (mediaCompletionTimeoutRef.current) {
@@ -1586,18 +1577,11 @@ ${simplifiedHistory}
                     onProgressComplete={(success, message) => {
                       if (success) {
                         setShowMediaCompletion(true);
-                        // 清除之前的定时器（如果有的话）
-                        if (mediaCompletionTimeoutRef.current) {
-                          clearTimeout(mediaCompletionTimeoutRef.current);
-                        }
-                        // 成功后2秒自动隐藏进度框
-                        mediaCompletionTimeoutRef.current = setTimeout(() => {
-                          setIsMediaProcessing(false);
-                          setMediaProgress(0);
-                          setMediaProgressMessage('');
-                          setShowMediaCompletion(false);
-                          mediaCompletionTimeoutRef.current = null;
-                        }, 2000);
+                        // 立即隐藏进度框，不使用延迟
+                        setIsMediaProcessing(false);
+                        setMediaProgress(0);
+                        setMediaProgressMessage('');
+                        setShowMediaCompletion(false);
                       } else {
                         // 清除之前的定时器（如果有的话）
                         if (mediaCompletionTimeoutRef.current) {
