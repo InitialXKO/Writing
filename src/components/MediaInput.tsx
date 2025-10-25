@@ -255,7 +255,8 @@ export default function MediaInput({
 
     recognition.onend = () => {
       setIsRecording(false);
-      const shouldFinalize = isStoppingRef.current;
+      const finalText = finalTranscriptRef.current.trim();
+      const shouldFinalize = isStoppingRef.current || finalText.length > 0;
       isStoppingRef.current = false;
       recognitionRef.current = null;
 
@@ -263,6 +264,10 @@ export default function MediaInput({
         finalizeRecognition().catch((error) => {
           console.error('处理语音识别结果失败:', error);
         });
+      } else {
+        setTranscript('');
+        setFinalTranscript('');
+        finalTranscriptRef.current = '';
       }
     };
 
