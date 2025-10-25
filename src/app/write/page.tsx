@@ -674,15 +674,68 @@ function WriteContent() {
       console.log('→ 开始图片识别（优先使用 Gradio OCR）');
       const response = await fetch(base64Image, { signal: abortController.signal });
       const imageBlob = await response.blob();
-      console.log('✓ 图片加载完成，连接 OCR 服务...');
+      console.log('✓ 图片加载完成，准备处理分辨率...');
 
       if (abortController.signal.aborted) {
         throw new DOMException('识别已取消', 'AbortError');
       }
 
-      const imageFile = new File([imageBlob], `handwriting-${Date.now()}.png`, {
-        type: imageBlob.type || 'image/png'
+      const MAX_DIMENSION = 1280;
+      let processedBlob = imageBlob;
+
+      try {
+        const imageBitmap = await createImageBitmap(imageBlob);
+        const originalWidth = imageBitmap.width;
+        const originalHeight = imageBitmap.height;
+
+        if (originalWidth > MAX_DIMENSION || originalHeight > MAX_DIMENSION) {
+          const scale = Math.min(MAX_DIMENSION / originalWidth, MAX_DIMENSION / originalHeight);
+          const targetWidth = Math.round(originalWidth * scale);
+          const targetHeight = Math.round(originalHeight * scale);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+
+            const downsampledBlob = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob(
+                (blob) => {
+                  if (blob) {
+                    resolve(blob);
+                  } else {
+                    reject(new Error('Downsampling failed'));
+                  }
+                },
+                'image/jpeg',
+                0.92
+              );
+            });
+
+            processedBlob = downsampledBlob;
+            console.log('✓ 图片已下采样:', {
+              originalWidth,
+              originalHeight,
+              targetWidth,
+              targetHeight,
+              originalSize: imageBlob.size,
+              downsampledSize: downsampledBlob.size,
+            });
+          }
+        }
+      } catch (downsampleError) {
+        console.warn('⚠ 图片下采样失败，使用原图继续:', downsampleError);
+      }
+
+      const imageFile = new File([processedBlob], `handwriting-${Date.now()}.jpg`, {
+        type: processedBlob.type || 'image/jpeg'
       });
+      console.log('✓ 图片准备完成，连接 OCR 服务...');
 
       let recognizedText = '';
       let usedFallback = false;
