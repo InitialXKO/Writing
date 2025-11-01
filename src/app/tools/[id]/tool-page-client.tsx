@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { writingTools } from '@/data/tools';
 import { useAppStore, canUnlockTool } from '@/lib/store'; // 导入解锁条件检查函数
 import { ArrowLeft, CheckCircle, Play, Edit, Award, Sparkles, Lightbulb, ShieldCheck, Lock, BookOpen, Brain, Unlock, Sparkles as SparklesIcon } from 'lucide-react';
@@ -13,42 +14,15 @@ import { topLevelToolIds as topLevelTools, subToolToParentMap, sharedSubTools } 
 
 // 导航逻辑辅助函数
 const getNavigationInfo = (toolId: string) => {
-  // 检查是否为顶层工具
-  if (topLevelTools.includes(toolId)) {
-    return {
-      type: 'top-level' as const,
-      href: '/tools/advanced-tools',
-      label: '返回高级工具页面'
-    };
-  }
-
-  // 检查是否为复用的子工具
-  if (sharedSubTools.includes(toolId)) {
-    return {
-      type: 'shared-sub' as const,
-      href: '/tools/advanced-tools',
-      label: '返回高级工具页面'
-    };
-  }
-
-  // 检查是否为子工具
-  if (subToolToParentMap[toolId]) {
-    return {
-      type: 'sub-tool' as const,
-      href: `/tools/${subToolToParentMap[toolId]}`,
-      label: '返回顶层工具'
-    };
-  }
-
-  // 默认返回首页
+  // 对于所有工具，返回按钮都使用浏览器后退功能
   return {
-    type: 'default' as const,
-    href: '/',
-    label: '返回首页'
+    type: 'go-back' as const,
+    label: '返回'
   };
 };
 
 export default function ToolPageClient({ params }: { params: { id: string } }) {
+  const router = useRouter();
   const toolId = params.id;
   const tool = writingTools.find(t => t.id === toolId);
   const { progress, passTest } = useAppStore();
@@ -102,16 +76,16 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
       {/* 头部 */}
       <div className="bg-gradient-to-r from-morandi-blue-600 to-morandi-green-700 text-white">
         <div className="max-w-6xl mx-auto px-6 py-8">
-          {/* 根据工具类型显示不同的返回按钮 */}
-          <Link
-            href={navigationInfo.href}
+          {/* 返回按钮使用浏览器后退功能 */}
+          <button
+            onClick={() => router.back()}
             className="flex items-center gap-2 text-morandi-blue-100 hover:text-white transition-colors mb-6 w-fit"
           >
             <div className="p-2 bg-morandi-blue-500/20 rounded-lg">
               <ArrowLeft className="w-5 h-5" />
             </div>
             {navigationInfo.label}
-          </Link>
+          </button>
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -429,13 +403,13 @@ export default function ToolPageClient({ params }: { params: { id: string } }) {
                 通过理解测试后解锁练习
               </button>
             )}
-            <Link
-              href={navigationInfo.href}
+            <button
+              onClick={() => router.back()}
               className="bg-gradient-to-r from-morandi-green-500 to-morandi-green-600 text-white font-bold py-4 px-8 rounded-2xl text-lg hover:from-morandi-green-600 hover:to-morandi-green-700 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl"
             >
               <CheckCircle className="w-6 h-6" />
               {navigationInfo.label}
-            </Link>
+            </button>
           </div>
           <p className="text-morandi-gray-600 mt-3">完成练习后记得保存并获取AI反馈哦！</p>
         </div>
