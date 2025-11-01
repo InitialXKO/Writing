@@ -8,10 +8,10 @@ import { Essay, EssayVersion } from '@/types';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ReactMarkdown from 'react-markdown';
-import VersionComparisonView from '@/components/VersionComparisonView';
+import SimplifiedVersionHistory from '@/components/SimplifiedVersionHistory';
 
 export default function EssaysPage() {
-  const { essays, deleteEssay, deleteEssayVersion } = useAppStore();
+  const { essays, deleteEssay } = useAppStore();
   const { showSuccess, showError } = useNotificationContext();
   const [selectedEssay, setSelectedEssay] = useState<Essay | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<EssayVersion | null>(null);
@@ -217,23 +217,47 @@ export default function EssaysPage() {
                 </div>
               </div>
 
-              {/* 版本对比视图 */}
+              {/* 版本历史 */}
               {selectedEssay.versions && selectedEssay.versions.length > 0 && (
-                <VersionComparisonView
+                <SimplifiedVersionHistory
                   essay={selectedEssay}
-                  versions={selectedEssay.versions}
                   selectedVersion={selectedVersion}
                   onVersionSelect={setSelectedVersion}
-                  onVersionDelete={(versionId) => {
-                    if (selectedEssay.id) {
-                      deleteEssayVersion(selectedEssay.id, versionId);
-                      // 如果删除的是当前选中的版本，清除选中状态
-                      if (selectedVersion?.id === versionId) {
-                        setSelectedVersion(null);
-                      }
-                    }
-                  }}
                 />
+              )}
+
+              {/* 内容区域 */}
+              <div>
+                <h3 className="font-bold text-morandi-gray-800 mb-3 flex items-center gap-2">
+                  <div className="p-1 bg-morandi-blue-100 rounded-md">
+                    <Edit3 className="w-4 h-4 text-morandi-blue-600" />
+                  </div>
+                  {selectedVersion ? '版本内容' : '当前版本内容'}
+                </h3>
+                <div className="bg-morandi-gray-50 p-4 rounded-lg border border-morandi-gray-200">
+                  <pre className="whitespace-pre-wrap font-sans text-morandi-gray-700">
+                    {getCurrentContent()}
+                  </pre>
+                </div>
+              </div>
+
+              {/* 批改意见 */}
+              {getCurrentFeedback() && (
+                <div className="mt-6">
+                  <h3 className="font-bold text-morandi-gray-800 mb-3 flex items-center gap-2">
+                    <div className="p-1 bg-morandi-green-100 rounded-md">
+                      <Sparkles className="w-4 h-4 text-morandi-green-600" />
+                    </div>
+                    批改意见
+                  </h3>
+                  <div className="bg-morandi-green-50 p-4 rounded-lg border border-morandi-green-200">
+                    <div className="text-morandi-gray-700 prose prose-sm max-w-none">
+                      <ReactMarkdown>
+                        {String(getCurrentFeedback() || '')}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           ) : (
