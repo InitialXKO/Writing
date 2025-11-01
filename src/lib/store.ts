@@ -23,6 +23,7 @@ interface AppState {
   addEssay: (essay: Omit<Essay, 'id' | 'createdAt'>) => string;
   updateEssay: (id: string, updates: Partial<Essay>) => void;
   deleteEssay: (id: string) => void;
+  deleteEssayVersion: (essayId: string, versionId: string) => void; // 删除作文版本
   addEssayVersion: (
     essayId: string,
     content: string,
@@ -342,6 +343,37 @@ export const useAppStore = create<AppState>()(
       deleteEssay: (id) => {
         set(state => ({
           essays: state.essays.filter(essay => essay.id !== id)
+        }));
+      },
+
+      // 删除作文版本
+      deleteEssayVersion: (essayId, versionId) => {
+        set(state => ({
+          essays: state.essays.map(essay => {
+            if (essay.id === essayId) {
+              // 过滤掉要删除的版本
+              const filteredVersions = essay.versions?.filter(version => version.id !== versionId) || [];
+
+              // 如果删除的是当前版本，需要更新currentVersionId
+              let newCurrentVersionId = essay.currentVersionId;
+              if (essay.currentVersionId === versionId) {
+                // 如果还有其他版本，选择最后一个版本作为当前版本
+                if (filteredVersions.length > 0) {
+                  newCurrentVersionId = filteredVersions[filteredVersions.length - 1].id;
+                } else {
+                  // 如果没有其他版本了，currentVersionId设为undefined
+                  newCurrentVersionId = undefined;
+                }
+              }
+
+              return {
+                ...essay,
+                versions: filteredVersions,
+                currentVersionId: newCurrentVersionId
+              };
+            }
+            return essay;
+          })
         }));
       },
 
