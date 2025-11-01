@@ -1,7 +1,7 @@
 // 顶层工具配置
 export const topLevelToolsConfig = [
   {
-    id: 'tool-59',
+    id: 'writing-steps',
     name: '作文步骤',
     icon: 'FileText',
     description: '终极写作指南：让技巧为你的心声服务',

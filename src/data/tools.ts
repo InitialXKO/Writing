@@ -2831,7 +2831,7 @@ export const writingTools: WritingTool[] = [
     }
   },
   {
-    id: 'tool-59',
+    id: 'writing-steps',
     name: '作文步骤',
     title: '终极写作指南：让技巧为你的心声服务',
     description: '一份融合了核心心法与专项工具的终极指南，将写作的"道"与"术"完美结合，让技巧真正为真诚的表达服务。',
