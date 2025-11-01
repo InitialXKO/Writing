@@ -40,6 +40,20 @@ export interface WritingTool {
   };
   // 新增子工具列表（仅用于顶层分类工具）
   subTools?: string[];
+  // 新增具体指导内容
+  guidance?: {
+    coreConcepts?: string[];
+    techniques?: {
+      name: string;
+      description: string;
+      examples?: string[];
+    }[];
+    practiceStages?: {
+      stage: string;
+      tasks: string[];
+    }[];
+    selfCheck?: string[];
+  };
 }
 
 // 关卡进度

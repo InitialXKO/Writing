@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Lightbulb, AlertTriangle, Target, GitBranch, Zap, Brain, ChevronRight, FileText, Copy } from 'lucide-react';
+import { Lightbulb, AlertTriangle, Target, GitBranch, Zap, Brain, ChevronRight, FileText } from 'lucide-react';
+import { writingTools } from '@/data/tools';
 
 interface WritingToolGuideProps {
   toolId: string;
@@ -14,192 +15,118 @@ const WritingToolGuide = ({ toolId }: WritingToolGuideProps) => {
     setActiveSection(activeSection === section ? null : section);
   };
 
-  // 根据不同工具ID显示不同的指南内容
-  const getGuideContent = () => {
-    switch (toolId) {
-      case 'tool-7': // 思辨写作
-        return {
-          title: '思辨写作进阶指南',
-          sections: [
-            {
-              id: 'thinkingMethod',
-              title: '思辨思维法',
-              icon: <Brain className="w-5 h-5 text-morandi-blue-600" />,
-              color: 'blue',
-              content: (
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2">
-                    <div className="mt-1 w-6 h-6 bg-morandi-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
-                    <div>
-                      <span className="font-medium text-morandi-blue-800">识别冲突：</span>
-                      <span className="text-morandi-blue-700">找到问题中的核心矛盾点</span>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="mt-1 w-6 h-6 bg-morandi-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
-                    <div>
-                      <span className="font-medium text-morandi-blue-800">分析假设：</span>
-                      <span className="text-morandi-blue-700">探究背后的思维模式和假设</span>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="mt-1 w-6 h-6 bg-morandi-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
-                    <div>
-                      <span className="font-medium text-morandi-blue-800">突破局限：</span>
-                      <span className="text-morandi-blue-700">找到更高维度的解决方案</span>
-                    </div>
-                  </div>
-                </div>
-              )
-            },
-            {
-              id: 'avoidTraps',
-              title: '避免思维陷阱',
-              icon: <AlertTriangle className="w-5 h-5 text-morandi-pink-600" />,
-              color: 'pink',
-              content: (
-                <ul className="space-y-3">
-                  <li className="flex items-start gap-2">
-                    <div className="mt-1 text-morandi-pink-500">🚫</div>
-                    <div>
-                      <span className="font-medium text-morandi-pink-800">人云亦云：</span>
-                      <span className="text-morandi-pink-700">缺乏独立思考，重复他人观点</span>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="mt-1 text-morandi-pink-500">🚫</div>
-                    <div>
-                      <span className="font-medium text-morandi-pink-800">二元对立：</span>
-                      <span className="text-morandi-pink-700">非黑即白的简单化思维</span>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="mt-1 text-morandi-pink-500">🚫</div>
-                    <div>
-                      <span className="font-medium text-morandi-pink-800">空谈理论：</span>
-                      <span className="text-morandi-pink-700">脱离实际，缺乏具体分析</span>
-                    </div>
-                  </li>
-                </ul>
-              )
-            }
-          ],
-          advancedTips: '模式让你在约束中游刃有余；思考让你在创造中独一无二。用理解文学的思路理解科学，用分析历史的眼光分析当下。'
-        };
+  // 获取工具数据
+  const tool = writingTools.find(t => t.id === toolId);
 
-      case 'tool-8': // 三问思维法
-        return {
-          title: '三问思维法指南',
-          sections: [
-            {
-              id: 'threeQuestions',
-              title: '三问思维流程',
-              icon: <Target className="w-5 h-5 text-morandi-green-600" />,
-              color: 'green',
-              content: (
-                <ol className="space-y-3">
-                  <li className="flex items-start gap-2">
-                    <div className="mt-1 w-6 h-6 bg-morandi-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
-                    <div>
-                      <span className="font-medium text-morandi-green-800">冲突识别：</span>
-                      <span className="text-morandi-green-700">找到问题的核心矛盾</span>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="mt-1 w-6 h-6 bg-morandi-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
-                    <div>
-                      <span className="font-medium text-morandi-green-800">假设分析：</span>
-                      <span className="text-morandi-green-700">探究思维定势和偏见</span>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="mt-1 w-6 h-6 bg-morandi-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
-                    <div>
-                      <span className="font-medium text-morandi-green-800">破局思考：</span>
-                      <span className="text-morandi-green-700">寻找创新解决方案</span>
-                    </div>
-                  </li>
-                </ol>
-              )
-            }
-          ],
-          advancedTips: '三问思维法让你跳出常规思维，从多个角度审视问题，找到更深层的理解。'
-        };
+  // 如果没有找到工具或者工具没有指导内容，不显示组件
+  if (!tool || !tool.guidance) {
+    return null;
+  }
 
-      case 'tool-9': // 宏观结构模式
-        return {
-          title: '结构设计指南',
-          sections: [
-            {
-              id: 'structurePatterns',
-              title: '结构模式选择',
-              icon: <GitBranch className="w-5 h-5 text-morandi-purple-600" />,
-              color: 'purple',
-              content: (
-                <div className="space-y-4">
-                  <div>
-                    <span className="font-medium text-morandi-purple-800">总分总结构：</span>
-                    <span className="text-morandi-purple-700">开篇点题 → 分点论述 → 总结升华</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-morandi-purple-800">对比结构：</span>
-                    <span className="text-morandi-purple-700">正反对比 → 利弊分析 → 得出结论</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-morandi-purple-800">递进结构：</span>
-                    <span className="text-morandi-purple-700">现象 → 原因 → 影响 → 对策</span>
-                  </div>
-                </div>
-              )
-            }
-          ],
-          advancedTips: '结构是文章的骨架，好的结构能让观点清晰、逻辑严密。'
-        };
+  const guidance = tool.guidance;
 
-      case 'tool-10': // 段落发展模式
-        return {
-          title: '段落发展指南',
-          sections: [
-            {
-              id: 'paragraphDevelopment',
-              title: '段落构建方法',
-              icon: <FileText className="w-5 h-5 text-morandi-indigo-600" />,
-              color: 'indigo',
-              content: (
-                <div className="space-y-4">
-                  <div>
-                    <span className="font-medium text-morandi-indigo-800">点题开头：</span>
-                    <span className="text-morandi-indigo-700">明确段落主旨，开门见山</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-morandi-indigo-800">分层论述：</span>
-                    <span className="text-morandi-indigo-700">多角度、多层面展开论述</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-morandi-indigo-800">例证支撑：</span>
-                    <span className="text-morandi-indigo-700">用具体事例佐证观点</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-morandi-indigo-800">回扣主题：</span>
-                    <span className="text-morandi-indigo-700">段落结尾呼应开头，强化中心</span>
-                  </div>
-                </div>
-              )
-            }
-          ],
-          advancedTips: '好的段落要主题明确、层次分明、论证充分、首尾呼应。'
-        };
+  // 根据指导内容生成章节
+  const sections = [];
 
-      default:
-        return {
-          title: '写作工具指南',
-          sections: [],
-          advancedTips: '每个写作工具都有其独特的价值，关键在于灵活运用、融会贯通。'
-        };
-    }
-  };
+  // 添加核心概念章节
+  if (guidance.coreConcepts && guidance.coreConcepts.length > 0) {
+    sections.push({
+      id: 'coreConcepts',
+      title: '核心概念',
+      icon: <Target className="w-5 h-5 text-morandi-blue-600" />,
+      color: 'blue',
+      content: (
+        <div className="space-y-3">
+          {guidance.coreConcepts.map((concept, index) => (
+            <div key={index} className="flex items-start gap-2">
+              <div className="mt-1 w-6 h-6 bg-morandi-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                {index + 1}
+              </div>
+              <span className="text-morandi-blue-700">{concept}</span>
+            </div>
+          ))}
+        </div>
+      )
+    });
+  }
 
-  const { title, sections, advancedTips } = getGuideContent();
+  // 添加技巧章节
+  if (guidance.techniques && guidance.techniques.length > 0) {
+    sections.push({
+      id: 'techniques',
+      title: '写作技巧',
+      icon: <Zap className="w-5 h-5 text-morandi-green-600" />,
+      color: 'green',
+      content: (
+        <ul className="space-y-3">
+          {guidance.techniques.map((technique, index) => (
+            <li key={index} className="flex items-start gap-2">
+              <div className="mt-1 text-morandi-green-500">✨</div>
+              <div>
+                <span className="font-medium text-morandi-green-800">{technique.name}：</span>
+                <span className="text-morandi-green-700">{technique.description}</span>
+                {technique.examples && technique.examples.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {technique.examples.map((example, exIndex) => (
+                      <div key={exIndex} className="text-sm text-morandi-green-600 bg-morandi-green-50 px-3 py-2 rounded-lg">
+                        {example}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )
+    });
+  }
+
+  // 添加练习阶段章节
+  if (guidance.practiceStages && guidance.practiceStages.length > 0) {
+    sections.push({
+      id: 'practiceStages',
+      title: '练习阶段',
+      icon: <FileText className="w-5 h-5 text-morandi-purple-600" />,
+      color: 'purple',
+      content: (
+        <div className="space-y-4">
+          {guidance.practiceStages.map((stage, index) => (
+            <div key={index} className="space-y-2">
+              <span className="font-medium text-morandi-purple-800">{stage.stage}：</span>
+              <ul className="list-disc list-inside text-morandi-purple-700 space-y-1">
+                {stage.tasks.map((task, taskIndex) => (
+                  <li key={taskIndex}>{task}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )
+    });
+  }
+
+  // 添加自查清单章节
+  if (guidance.selfCheck && guidance.selfCheck.length > 0) {
+    sections.push({
+      id: 'selfCheck',
+      title: '自查清单',
+      icon: <Brain className="w-5 h-5 text-morandi-indigo-600" />,
+      color: 'indigo',
+      content: (
+        <div className="space-y-3">
+          {guidance.selfCheck.map((check, index) => (
+            <div key={index} className="flex items-start gap-2">
+              <div className="mt-1 text-morandi-indigo-500">🔍</div>
+              <span className="text-morandi-indigo-700">{check}</span>
+            </div>
+          ))}
+        </div>
+      )
+    });
+  }
+
+  const advancedTips = tool.tips || '技巧是忠实的仆人，真诚才是文字的王。灵活运用这些方法，写出属于你的独特文字。';
 
   if (sections.length === 0) {
     return null; // 如果没有对应的指南内容，不显示组件
@@ -247,7 +174,7 @@ const WritingToolGuide = ({ toolId }: WritingToolGuideProps) => {
         <div className="p-2 bg-morandi-purple-500/20 rounded-lg">
           <Lightbulb className="w-6 h-6 text-morandi-purple-700" />
         </div>
-        {title}
+        {tool.title || tool.name}指南
       </h3>
 
       <div className="space-y-4">

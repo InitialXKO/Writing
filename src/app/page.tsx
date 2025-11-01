@@ -285,9 +285,9 @@ export default function HomePage() {
       {/* 基本工具卡片网格 */}
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {writingTools.filter(tool => {
-          // 只显示基本工具（tool-0到tool-6）和自由写作工具
+          // 只显示基本工具（tool-0到tool-6）、自由写作工具和作文步骤工具
           const toolNumber = tool.id.startsWith('tool-') ? parseInt(tool.id.split('-')[1]) : -1;
-          return tool.id === 'free-writing' || (toolNumber >= 0 && toolNumber <= 6);
+          return tool.id === 'free-writing' || tool.id === 'writing-steps' || (toolNumber >= 0 && toolNumber <= 6);
         }).map((tool, index) => {
           const level = progress.levels.find(l => l.toolId === tool.id);
           // 自由写作工具始终是已解锁的
