@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Essay, EssayVersion } from '@/types';
-import { Edit3, History, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit3, History, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
+import { useAppStore } from '@/lib/store';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useNotificationContext } from '@/contexts/NotificationContext';
 
 interface SimplifiedVersionHistoryProps {
   essay: Essay;
@@ -24,8 +27,11 @@ export default function SimplifiedVersionHistory({
   selectedVersion,
   onVersionSelect
 }: SimplifiedVersionHistoryProps) {
-  // 当前显示的版本路径
+  const { deleteEssayVersion } = useAppStore();
+  const { showSuccess, showError } = useNotificationContext();
   const [currentViewPath, setCurrentViewPath] = useState<EssayVersion[]>([]);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState<boolean>(false);
+  const [versionToDelete, setVersionToDelete] = useState<{essayId: string, versionId: string} | null>(null);
 
   // 构建带兄弟关系的版本树
   const buildVersionTreeWithSiblings = (versions: EssayVersion[]): ExtendedEssayVersion[] => {
@@ -266,6 +272,41 @@ export default function SimplifiedVersionHistory({
     }
   };
 
+  // 处理删除版本
+  const handleDeleteVersion = (essayId: string, versionId: string) => {
+    setVersionToDelete({ essayId, versionId });
+    setIsConfirmDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (versionToDelete) {
+      deleteEssayVersion(versionToDelete.essayId, versionToDelete.versionId);
+      showSuccess('版本已删除');
+      // 如果删除的是当前选中的版本，需要清除选中状态
+      if (selectedVersion?.id === versionToDelete.versionId) {
+        onVersionSelect({} as EssayVersion); // 这里需要更好的处理
+      }
+    }
+    setIsConfirmDialogOpen(false);
+    setVersionToDelete(null);
+  };
+
+  const handleCancelDelete = () => {
+    setIsConfirmDialogOpen(false);
+    setVersionToDelete(null);
+  };
+
+  // 检查是否可以删除版本
+  const canDeleteVersion = (version: EssayVersion) => {
+    if (!essay.versions) return false;
+    // 如果只有一个版本，不能删除
+    if (essay.versions.length <= 1) return false;
+    // 如果是主版本（没有parentId），且只有一个主版本，不能删除
+    const mainVersions = essay.versions.filter(v => !v.parentId);
+    if (!version.parentId && mainVersions.length <= 1) return false;
+    return true;
+  };
+
   // 初始化显示路径
   useEffect(() => {
     if (essay.versions && essay.versions.length > 0) {
@@ -311,14 +352,14 @@ export default function SimplifiedVersionHistory({
             <div key={version.id} className="relative">
               {/* 版本项 */}
               <div
-                className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                className={`p-4 rounded-lg border cursor-pointer transition-all ${
                   isSelected
                     ? 'border-morandi-blue-500 bg-morandi-blue-50'
                     : 'border-morandi-gray-200 hover:border-morandi-blue-300 hover:bg-morandi-blue-50'
                 }`}
-                onClick={() => onVersionSelect(version)}
               >
-                <div className="flex justify-between items-center">
+                {/* 卡片头部 - 版本信息和操作按钮 */}
+                <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-morandi-gray-700">
                       {(() => {
@@ -340,6 +381,15 @@ export default function SimplifiedVersionHistory({
                     </span>
                   </div>
                   <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onVersionSelect(version);
+                      }}
+                      className="text-sm text-morandi-blue-600 hover:text-morandi-blue-800 flex items-center gap-1"
+                    >
+                      查看详情
+                    </button>
                     <Link
                       href={`/write?essayId=${essay.id}&versionId=${version.id}`}
                       onClick={(e) => e.stopPropagation()}
@@ -348,18 +398,51 @@ export default function SimplifiedVersionHistory({
                       <Edit3 className="w-3 h-3" />
                       编辑
                     </Link>
+                    {canDeleteVersion(version) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteVersion(essay.id, version.id);
+                        }}
+                        className="text-sm text-morandi-gray-500 hover:text-morandi-red-600 flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        删除
+                      </button>
+                    )}
                   </div>
                 </div>
-                {version.feedback && (
-                  <div className="mt-2 text-sm text-morandi-gray-600 bg-white p-2 rounded">
-                    <span className="font-medium">批改意见：</span>
-                    <div className="inline prose prose-sm max-w-none">
-                      <ReactMarkdown>
-                        {String(version.feedback?.substring(0, 100) || '') + '...'}
-                      </ReactMarkdown>
+
+                {/* 左右两栏布局 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* 左侧 - 文章内容 */}
+                  <div className="bg-morandi-blue-50 p-3 rounded border border-morandi-blue-100">
+                    <h4 className="text-xs font-medium text-morandi-blue-700 mb-2">文章内容</h4>
+                    <div className="text-sm text-morandi-gray-700 bg-white p-2 rounded min-h-24">
+                      <pre className="whitespace-pre-wrap font-sans text-xs">
+                        {version.content.substring(0, 150) + (version.content.length > 150 ? '...' : '')}
+                      </pre>
                     </div>
                   </div>
-                )}
+
+                  {/* 右侧 - 批改反馈 */}
+                  <div className="bg-morandi-green-50 p-3 rounded border border-morandi-green-100">
+                    <h4 className="text-xs font-medium text-morandi-green-700 mb-2">批改反馈</h4>
+                    {version.feedback ? (
+                      <div className="text-sm text-morandi-gray-700 bg-white p-2 rounded min-h-24">
+                        <div className="prose prose-xs max-w-none">
+                          <ReactMarkdown>
+                            {String(version.feedback.substring(0, 150) || '') + (version.feedback.length > 150 ? '...' : '')}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-morandi-gray-500 bg-white p-2 rounded min-h-24 flex items-center justify-center">
+                        <p>暂无批改反馈</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* 兄弟版本切换指示器 */}
