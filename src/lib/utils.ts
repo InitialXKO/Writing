@@ -1,3 +1,10 @@
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
 export const getActualEndpoint = (baseURL?: string): string => {
   if (!baseURL) return 'https://api.openai.com/v1';
   let url = baseURL.trim();
