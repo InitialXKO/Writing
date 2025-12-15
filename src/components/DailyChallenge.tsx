@@ -3,6 +3,9 @@
 import { DailyChallenge } from '@/types';
 import { Sparkles, CheckCircle, Calendar, Trophy, Edit3 } from 'lucide-react';
 import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface DailyChallengeProps {
   challenge: DailyChallenge;
@@ -21,69 +24,77 @@ export default function DailyChallengeCard({ challenge, onSwap, onMakeup }: Dail
     : '/write';
 
   return (
-    <div className="bg-gradient-to-br from-morandi-purple-50 to-morandi-purple-100 border border-morandi-purple-200 rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-morandi-purple-800 flex items-center gap-2">
-          <div className="p-2 bg-morandi-purple-500/20 rounded-lg">
-            <Sparkles className="w-5 h-5 text-morandi-purple-700" />
-          </div>
-          每日挑战
-        </h3>
-        <div className="flex items-center gap-2 text-morandi-purple-700">
-          <Calendar className="w-4 h-4" />
-          <span className="text-sm font-medium">{challengeDate.toLocaleDateString('zh-CN')}</span>
+    <Card className="bg-gradient-to-br from-morandi-purple-50 to-morandi-purple-100 border-morandi-purple-200 shadow-card hover:shadow-card-hover transition-shadow">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg text-morandi-purple-800 flex items-center gap-2">
+            <div className="p-2 bg-morandi-purple-500/20 rounded-lg">
+              <Sparkles className="w-5 h-5 text-morandi-purple-700" />
+            </div>
+            每日挑战
+          </CardTitle>
+          <Badge variant="secondary" className="bg-white/50 text-morandi-purple-700 border-morandi-purple-300">
+            <Calendar className="w-4 h-4 mr-1" />
+            {challengeDate.toLocaleDateString('zh-CN')}
+          </Badge>
         </div>
-      </div>
+      </CardHeader>
 
-      <div className="mb-4">
-        <p className="text-morandi-purple-800 bg-white/50 p-4 rounded-xl">
-          {challenge.task}
-        </p>
-      </div>
+      <CardContent className="space-y-4">
+        <Card className="bg-white/50 border-white/80">
+          <CardContent className="p-4">
+            <p className="text-morandi-purple-800">
+              {challenge.task}
+            </p>
+          </CardContent>
+        </Card>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-morandi-purple-700">
-          <Trophy className="w-4 h-4" />
-          <span className="text-sm font-medium">连续 {challenge.streak} 天</span>
-        </div>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <Badge className="bg-morandi-purple-200 text-morandi-purple-700 border-morandi-purple-300 hover:bg-morandi-purple-300">
+            <Trophy className="w-4 h-4 mr-1" />
+            连续 {challenge.streak} 天
+          </Badge>
 
-        {challenge.completed ? (
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-morandi-green-500 text-white shadow-md">
-            <CheckCircle className="w-4 h-4" />
-            已完成
-          </div>
-        ) : (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Link
-                href={targetHref}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white shadow-md hover:shadow-lg transition-all whitespace-nowrap"
+          {challenge.completed ? (
+            <Badge className="bg-morandi-green-500 text-white border-0 hover:bg-morandi-green-600 px-4 py-2 shadow-md">
+              <CheckCircle className="w-4 h-4 mr-1" />
+              已完成
+            </Badge>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                asChild
+                className="bg-gradient-to-r from-morandi-blue-500 to-morandi-blue-600 hover:from-morandi-blue-600 hover:to-morandi-blue-700 text-white shadow-md hover:shadow-lg"
               >
-                <Edit3 className="w-4 h-4" />
-                去完成
-              </Link>
+                <Link href={targetHref}>
+                  <Edit3 className="w-4 h-4 mr-1" />
+                  去完成
+                </Link>
+              </Button>
               {onSwap && (
-                <button
+                <Button
                   onClick={onSwap}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl font-medium bg-white text-morandi-purple-700 border border-morandi-purple-300 hover:bg-morandi-purple-50 shadow-sm whitespace-nowrap"
+                  variant="outline"
+                  className="bg-white text-morandi-purple-700 border-morandi-purple-300 hover:bg-morandi-purple-50"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-4 h-4 mr-1" />
                   换一个
-                </button>
+                </Button>
+              )}
+              {challenge.canMakeup && onMakeup && (
+                <Button
+                  onClick={onMakeup}
+                  variant="outline"
+                  className="bg-white text-morandi-purple-700 border-morandi-purple-300 hover:bg-morandi-purple-50"
+                >
+                  <Calendar className="w-4 h-4 mr-1" />
+                  补签
+                </Button>
               )}
             </div>
-            {challenge.canMakeup && onMakeup && (
-              <button
-                onClick={onMakeup}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl font-medium bg-white text-morandi-purple-700 border border-morandi-purple-300 hover:bg-morandi-purple-50 shadow-sm whitespace-nowrap"
-              >
-                <Calendar className="w-4 h-4" />
-                补签
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
