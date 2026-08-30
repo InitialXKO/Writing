@@ -18,6 +18,8 @@ export default function SettingsPage() {
   const [model, setModel] = useState(aiConfig?.model || 'gpt-4');
   const [models, setModels] = useState<string[]>(aiConfig?.models || []);
   const [pollinationsApiKey, setPollinationsApiKey] = useState(aiConfig?.pollinationsApiKey || '');
+  const [isCustomModel, setIsCustomModel] = useState(false);
+  const [customModelInput, setCustomModelInput] = useState('');
 
   // 防抖定时器
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -334,33 +336,62 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-morandi-gray-700 mb-2">
-                模型
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <select
-                  value={model}
-                  onChange={(e) => setModelAndSave(e.target.value)}
-                  className="w-full sm:flex-1 min-w-0 max-w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white shadow-sm"
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-morandi-gray-700">
+                  模型
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomModel(!isCustomModel)}
+                  className="text-xs text-morandi-blue-600 hover:underline"
                 >
-                  {models.length > 0 ? (
-                    models.map((modelName) => (
-                      <option key={modelName} value={modelName}>
-                        {modelName}
-                      </option>
-                    ))
-                  ) : (
-                    <>
-                      <option value="gpt-4">GPT-4</option>
-                      <option value="gpt-4o">GPT-4o</option>
-                      <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                      <option value="claude-3-opus">Claude 3 Opus</option>
-                      <option value="claude-3-sonnet">Claude 3 Sonnet</option>
-                      <option value="deepseek-chat">DeepSeek Chat</option>
-                      <option value="moonshot-v1-8k">Moonshot v1 8k</option>
-                    </>
-                  )}
-                </select>
+                  {isCustomModel ? '从列表中选择' : '手动输入模型名称'}
+                </button>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {isCustomModel ? (
+                  <input
+                    type="text"
+                    value={model}
+                    onChange={(e) => setModelAndSave(e.target.value)}
+                    placeholder="输入模型名称，如 deepseek-v3 / gpt-4o"
+                    className="w-full sm:flex-1 min-w-0 max-w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 shadow-sm font-mono text-sm"
+                  />
+                ) : (
+                  <select
+                    value={model}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setIsCustomModel(true);
+                      } else {
+                        setModelAndSave(e.target.value);
+                      }
+                    }}
+                    className="w-full sm:flex-1 min-w-0 max-w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white shadow-sm"
+                  >
+                    {models.length > 0 ? (
+                      models.map((modelName) => (
+                        <option key={modelName} value={modelName}>
+                          {modelName}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="gpt-4o">GPT-4o</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        <option value="claude-3-opus">Claude 3 Opus</option>
+                        <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                        <option value="deepseek-chat">DeepSeek Chat</option>
+                        <option value="moonshot-v1-8k">Moonshot v1 8k</option>
+                      </>
+                    )}
+                    {!models.includes(model) && Boolean(model) && (
+                      <option value={model}>{model} (自定义)</option>
+                    )}
+                    <option value="__custom__">+ 手动输入模型名称...</option>
+                  </select>
+                )}
                 <button
                   onClick={fetchModels}
                   disabled={isFetchingModels || !apiKey}
@@ -375,7 +406,7 @@ export default function SettingsPage() {
                 </button>
               </div>
               <p className="mt-2 text-sm text-morandi-gray-500">
-                选择要使用的AI模型，点击"获取模型"从供应商拉取模型列表
+                选择要使用的AI模型，点击"获取模型"从供应商拉取模型列表；若无法自动获取，可直接手动填写模型名称。
               </p>
             </div>
 

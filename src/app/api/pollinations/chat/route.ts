@@ -163,7 +163,8 @@ export async function POST(request: Request) {
   const pollinationsKey =
     payload.apiKey ||
     (authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined) ||
-    process.env.POLLINATIONS_API_KEY;
+    process.env.POLLINATIONS_API_KEY ||
+    process.env.NEXT_PUBLIC_POLLINATIONS_API_KEY;
 
   const hasApiKey = isNonEmptyString(pollinationsKey);
 
