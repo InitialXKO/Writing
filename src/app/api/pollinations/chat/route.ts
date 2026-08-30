@@ -14,10 +14,11 @@ type PollinationsRequestPayload = {
   fallbackModels?: string[];
   jsonMode?: boolean;
   timeoutMs?: number;
+  apiKey?: string;
 };
 
-const POLLINATIONS_ENDPOINT = 'https://text.pollinations.ai/?referrer=growsnova.com';
-const POLLINATIONS_DEFAULT_MODELS = ['openai', 'mistral', 'llama'];
+const POLLINATIONS_ENDPOINT = 'https://gen.pollinations.ai/v1/chat/completions';
+const POLLINATIONS_DEFAULT_MODELS = ['openai', 'claude-hybrid', 'mistral'];
 const DEFAULT_SEED = 42;
 const DEFAULT_TIMEOUT_MS = 20000;
 const MAX_TIMEOUT_MS = 60000;
@@ -158,85 +159,120 @@ export async function POST(request: Request) {
   const ip = getClientIp(request);
   const now = Date.now();
 
-  if (rateLimitStore.size > RATE_LIMIT_CLEANUP_THRESHOLD) {
-    const cutoff = now - RATE_LIMIT_STALE_WINDOW_MS;
-    rateLimitStore.forEach((value, key) => {
-      if (value.activeRequests === 0 && value.lastRequestTime < cutoff) {
-        rateLimitStore.delete(key);
-      }
-    });
+  const authHeader = request.headers.get('authorization');
+  const pollinationsKey =
+    payload.apiKey ||
+    (authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined) ||
+    process.env.POLLINATIONS_API_KEY;
+
+  const hasApiKey = isNonEmptyString(pollinationsKey);
+
+  // 如果配置了 API Key，不应用紧缩的单 IP 频率限制
+  if (!hasApiKey) {
+    if (rateLimitStore.size > RATE_LIMIT_CLEANUP_THRESHOLD) {
+      const cutoff = now - RATE_LIMIT_STALE_WINDOW_MS;
+      rateLimitStore.forEach((value, key) => {
+        if (value.activeRequests === 0 && value.lastRequestTime < cutoff) {
+          rateLimitStore.delete(key);
+        }
+      });
+    }
+
+    const state = rateLimitStore.get(ip) ?? { lastRequestTime: 0, activeRequests: 0 };
+
+    if (state.activeRequests >= MAX_CONCURRENT_REQUESTS_PER_IP) {
+      return NextResponse.json(
+        { error: '请求过于频繁，请稍后再试。您可以在“设置”中配置 Pollinations API Key 解除频率限制。', retryAfter: '3' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': '3',
+          },
+        }
+      );
+    }
+
+    const elapsed = now - state.lastRequestTime;
+    if (elapsed < MIN_INTERVAL_MS) {
+      const retryAfter = Math.ceil((MIN_INTERVAL_MS - elapsed) / 1000);
+      return NextResponse.json(
+        { error: `请求过于频繁，请在 ${retryAfter} 秒后再试。建议在“设置”中配置 Pollinations API Key。`, retryAfter: retryAfter.toString() },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': retryAfter.toString(),
+          },
+        }
+      );
+    }
+
+    state.activeRequests += 1;
+    rateLimitStore.set(ip, state);
   }
-
-  const state = rateLimitStore.get(ip) ?? { lastRequestTime: 0, activeRequests: 0 };
-
-  if (state.activeRequests >= MAX_CONCURRENT_REQUESTS_PER_IP) {
-    return NextResponse.json(
-      { error: '请求过于频繁，请稍后再试', retryAfter: '3' },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': '3',
-        },
-      }
-    );
-  }
-
-  const elapsed = now - state.lastRequestTime;
-  if (elapsed < MIN_INTERVAL_MS) {
-    const retryAfter = Math.ceil((MIN_INTERVAL_MS - elapsed) / 1000);
-    return NextResponse.json(
-      { error: '请求过于频繁，请稍后再试', retryAfter: retryAfter.toString() },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': retryAfter.toString(),
-        },
-      }
-    );
-  }
-
-  state.activeRequests += 1;
-  rateLimitStore.set(ip, state);
 
   try {
     const errors: { model: string; error: string }[] = [];
 
     for (const model of candidateModels) {
       try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+
+        if (hasApiKey) {
+          headers['Authorization'] = `Bearer ${pollinationsKey}`;
+        }
+
+        const requestBody: Record<string, unknown> = {
+          messages,
+          model,
+          seed,
+        };
+
+        if (jsonMode) {
+          requestBody.response_format = { type: 'json_object' };
+        }
+
         const response = await fetchWithTimeout(
           POLLINATIONS_ENDPOINT,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              messages,
-              seed,
-              model,
-              jsonMode,
-            }),
+            headers,
+            body: JSON.stringify(requestBody),
             cache: 'no-store',
           },
           timeoutMs
         );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
+        const raw = await response.text();
+        let jsonRes: any = null;
+        try {
+          jsonRes = raw ? JSON.parse(raw) : null;
+        } catch {
+          // not json
         }
 
-        const raw = await response.text();
-        let content: unknown;
+        if (!response.ok) {
+          const errMsg = jsonRes?.error?.message || jsonRes?.error || raw.substring(0, 200);
+          throw new Error(`HTTP ${response.status}: ${errMsg}`);
+        }
 
+        let contentText = '';
+        if (jsonRes && Array.isArray(jsonRes.choices) && jsonRes.choices.length > 0) {
+          contentText = jsonRes.choices[0]?.message?.content || '';
+        } else {
+          contentText = raw;
+        }
+
+        let content: unknown;
         if (jsonMode) {
           try {
-            content = JSON.parse(raw);
+            content = JSON.parse(contentText);
           } catch {
-            throw new Error('Pollinations 返回的 JSON 无法解析');
+            content = cleanMarkdown(contentText);
           }
         } else {
-          content = cleanMarkdown(raw);
+          content = cleanMarkdown(contentText);
         }
 
         return NextResponse.json({
@@ -259,8 +295,13 @@ export async function POST(request: Request) {
       { status: 502 }
     );
   } finally {
-    state.activeRequests = Math.max(0, state.activeRequests - 1);
-    state.lastRequestTime = Date.now();
-    rateLimitStore.set(ip, state);
+    if (!hasApiKey) {
+      const state = rateLimitStore.get(ip);
+      if (state) {
+        state.activeRequests = Math.max(0, state.activeRequests - 1);
+        state.lastRequestTime = Date.now();
+        rateLimitStore.set(ip, state);
+      }
+    }
   }
 }

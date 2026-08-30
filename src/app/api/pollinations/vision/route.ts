@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const POLLINATIONS_VISION_ENDPOINT = 'https://text.pollinations.ai/';
+const POLLINATIONS_VISION_ENDPOINT = 'https://gen.pollinations.ai/v1/chat/completions';
 const DEFAULT_VISION_MODEL = 'openai';
 const DEFAULT_VISION_PROMPT = '请用中文对这张图片进行OCR。';
 const DEFAULT_MAX_TOKENS = 700;
@@ -71,6 +71,7 @@ export async function POST(request: Request) {
     model?: string;
     maxTokens?: number;
     timeoutMs?: number;
+    apiKey?: string;
   };
 
   try {
@@ -79,7 +80,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '请求体不是有效的 JSON' }, { status: 400 });
   }
 
-  const { imageDataUrl, prompt, model, maxTokens, timeoutMs } = body ?? {};
+  const { imageDataUrl, prompt, model, maxTokens, timeoutMs, apiKey } = body ?? {};
+
+  const authHeader = request.headers.get('authorization');
+  const pollinationsKey =
+    apiKey ||
+    (authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined) ||
+    process.env.POLLINATIONS_API_KEY;
+
+  const hasApiKey = isNonEmptyString(pollinationsKey);
 
   if (!isNonEmptyString(imageDataUrl)) {
     return NextResponse.json({ error: '缺少有效的 imageDataUrl，需为 data:image/... 格式的 base64 字符串' }, { status: 400 });
@@ -138,11 +147,17 @@ export async function POST(request: Request) {
       max_tokens: effectiveMaxTokens,
     };
 
-    const response = await fetchWithTimeout(`${POLLINATIONS_VISION_ENDPOINT}openai?referrer=growsnova.com`, {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (hasApiKey) {
+      headers['Authorization'] = `Bearer ${pollinationsKey}`;
+    }
+
+    const response = await fetchWithTimeout(POLLINATIONS_VISION_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(payload),
       cache: 'no-store',
     }, effectiveTimeout);

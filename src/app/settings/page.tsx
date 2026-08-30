@@ -17,6 +17,7 @@ export default function SettingsPage() {
   const [baseURL, setBaseURL] = useState(aiConfig?.baseURL || '');
   const [model, setModel] = useState(aiConfig?.model || 'gpt-4');
   const [models, setModels] = useState<string[]>(aiConfig?.models || []);
+  const [pollinationsApiKey, setPollinationsApiKey] = useState(aiConfig?.pollinationsApiKey || '');
 
   // 防抖定时器
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -35,12 +36,13 @@ export default function SettingsPage() {
   };
 
   // 通用函数：保存AI配置
-  const saveAIConfig = (key: string, url: string, selectedModel: string, modelList: string[]) => {
+  const saveAIConfig = (key: string, url: string, selectedModel: string, modelList: string[], pollinationsKey?: string) => {
     setAIConfig({
       apiKey: key,
       baseURL: url,
       model: selectedModel,
       models: modelList,
+      pollinationsApiKey: pollinationsKey !== undefined ? pollinationsKey : aiConfig?.pollinationsApiKey,
     });
   };
 
@@ -53,7 +55,7 @@ export default function SettingsPage() {
     }
     // 设置新的定时器
     saveTimeoutRef.current = setTimeout(() => {
-      saveAIConfig(value, baseURL, model, aiConfig?.models || []);
+      saveAIConfig(value, baseURL, model, aiConfig?.models || [], pollinationsApiKey);
     }, 1000);
   };
 
@@ -65,7 +67,7 @@ export default function SettingsPage() {
     }
     // 设置新的定时器
     saveTimeoutRef.current = setTimeout(() => {
-      saveAIConfig(apiKey, value, model, aiConfig?.models || []);
+      saveAIConfig(apiKey, value, model, aiConfig?.models || [], pollinationsApiKey);
     }, 1000);
   };
 
@@ -77,7 +79,17 @@ export default function SettingsPage() {
     }
     // 设置新的定时器
     saveTimeoutRef.current = setTimeout(() => {
-      saveAIConfig(apiKey, baseURL, value, aiConfig?.models || []);
+      saveAIConfig(apiKey, baseURL, value, aiConfig?.models || [], pollinationsApiKey);
+    }, 1000);
+  };
+
+  const setPollinationsApiKeyAndSave = (value: string) => {
+    setPollinationsApiKey(value);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      saveAIConfig(apiKey, baseURL, model, aiConfig?.models || [], value);
     }, 1000);
   };
 
@@ -100,6 +112,7 @@ export default function SettingsPage() {
     setBaseURL(aiConfig?.baseURL || '');
     setModel(aiConfig?.model || 'gpt-4');
     setModels(aiConfig?.models || []);
+    setPollinationsApiKey(aiConfig?.pollinationsApiKey || '');
   }, [aiConfig]);
 
   // 使用通用工具函数 getActualEndpoint(baseURL)
@@ -363,6 +376,25 @@ export default function SettingsPage() {
               </div>
               <p className="mt-2 text-sm text-morandi-gray-500">
                 选择要使用的AI模型，点击"获取模型"从供应商拉取模型列表
+              </p>
+            </div>
+
+            <div className="pt-4 border-t border-morandi-gray-200">
+              <label className="block text-sm font-medium text-morandi-gray-700 mb-2 flex items-center gap-2">
+                <div className="p-1 bg-morandi-purple-100 rounded-md">
+                  <Key className="w-4 h-4 text-morandi-purple-600" />
+                </div>
+                Pollinations API Key (可选)
+              </label>
+              <input
+                type="password"
+                value={pollinationsApiKey}
+                onChange={(e) => setPollinationsApiKeyAndSave(e.target.value)}
+                placeholder="pk_... 或 sk_..."
+                className="w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 shadow-sm font-mono text-sm"
+              />
+              <p className="mt-2 text-sm text-morandi-gray-500">
+                填写 Pollinations 官方 API Key（App Key `pk_` 或 Secret Key `sk_`）可解锁额度限制，享受更高并发与配额。留空将使用默认公共体验额度。
               </p>
             </div>
 

@@ -604,6 +604,7 @@ const callPollinationsChatWithFallback = async (
   const secondaryModels = orderedModels.slice(1);
 
   const executeRequest = async (attempt: number): Promise<{ content: string; model: string }> => {
+    const pollinationsApiKey = useAppStore.getState().aiConfig?.pollinationsApiKey;
     const response = await fetch('/api/pollinations/chat', {
       method: 'POST',
       headers: {
@@ -616,6 +617,7 @@ const callPollinationsChatWithFallback = async (
         fallbackModels: secondaryModels,
         timeoutMs,
         jsonMode: false,
+        apiKey: pollinationsApiKey,
       }),
     });
 
@@ -719,6 +721,7 @@ function WriteContent() {
   // 使用 Pollinations Vision API 进行 OCR（降级方案）
   const recognizeWithPollinations = async (base64Image: string, signal: AbortSignal): Promise<string> => {
     console.log('→ 尝试使用 Pollinations Vision API 进行 OCR...');
+    const pollinationsApiKey = useAppStore.getState().aiConfig?.pollinationsApiKey;
     const response = await fetch('/api/pollinations/vision', {
       method: 'POST',
       headers: {
@@ -729,6 +732,7 @@ function WriteContent() {
         prompt: '请识别这张图片中的所有手写文字，直接输出识别的文字内容，不要添加任何解释或格式。',
         maxTokens: 800,
         timeoutMs: 45000,
+        apiKey: pollinationsApiKey,
       }),
       signal,
     });
