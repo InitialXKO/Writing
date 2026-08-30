@@ -17,6 +17,9 @@ export default function SettingsPage() {
   const [baseURL, setBaseURL] = useState(aiConfig?.baseURL || '');
   const [model, setModel] = useState(aiConfig?.model || 'gpt-4');
   const [models, setModels] = useState<string[]>(aiConfig?.models || []);
+  const [pollinationsApiKey, setPollinationsApiKey] = useState(aiConfig?.pollinationsApiKey || '');
+  const [isCustomModel, setIsCustomModel] = useState(false);
+  const [customModelInput, setCustomModelInput] = useState('');
 
   // 防抖定时器
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -35,12 +38,13 @@ export default function SettingsPage() {
   };
 
   // 通用函数：保存AI配置
-  const saveAIConfig = (key: string, url: string, selectedModel: string, modelList: string[]) => {
+  const saveAIConfig = (key: string, url: string, selectedModel: string, modelList: string[], pollinationsKey?: string) => {
     setAIConfig({
       apiKey: key,
       baseURL: url,
       model: selectedModel,
       models: modelList,
+      pollinationsApiKey: pollinationsKey !== undefined ? pollinationsKey : aiConfig?.pollinationsApiKey,
     });
   };
 
@@ -53,7 +57,7 @@ export default function SettingsPage() {
     }
     // 设置新的定时器
     saveTimeoutRef.current = setTimeout(() => {
-      saveAIConfig(value, baseURL, model, aiConfig?.models || []);
+      saveAIConfig(value, baseURL, model, aiConfig?.models || [], pollinationsApiKey);
     }, 1000);
   };
 
@@ -65,7 +69,7 @@ export default function SettingsPage() {
     }
     // 设置新的定时器
     saveTimeoutRef.current = setTimeout(() => {
-      saveAIConfig(apiKey, value, model, aiConfig?.models || []);
+      saveAIConfig(apiKey, value, model, aiConfig?.models || [], pollinationsApiKey);
     }, 1000);
   };
 
@@ -77,7 +81,17 @@ export default function SettingsPage() {
     }
     // 设置新的定时器
     saveTimeoutRef.current = setTimeout(() => {
-      saveAIConfig(apiKey, baseURL, value, aiConfig?.models || []);
+      saveAIConfig(apiKey, baseURL, value, aiConfig?.models || [], pollinationsApiKey);
+    }, 1000);
+  };
+
+  const setPollinationsApiKeyAndSave = (value: string) => {
+    setPollinationsApiKey(value);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      saveAIConfig(apiKey, baseURL, model, aiConfig?.models || [], value);
     }, 1000);
   };
 
@@ -100,6 +114,7 @@ export default function SettingsPage() {
     setBaseURL(aiConfig?.baseURL || '');
     setModel(aiConfig?.model || 'gpt-4');
     setModels(aiConfig?.models || []);
+    setPollinationsApiKey(aiConfig?.pollinationsApiKey || '');
   }, [aiConfig]);
 
   // 使用通用工具函数 getActualEndpoint(baseURL)
@@ -321,33 +336,62 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-morandi-gray-700 mb-2">
-                模型
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <select
-                  value={model}
-                  onChange={(e) => setModelAndSave(e.target.value)}
-                  className="w-full sm:flex-1 min-w-0 max-w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white shadow-sm"
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-morandi-gray-700">
+                  模型
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomModel(!isCustomModel)}
+                  className="text-xs text-morandi-blue-600 hover:underline"
                 >
-                  {models.length > 0 ? (
-                    models.map((modelName) => (
-                      <option key={modelName} value={modelName}>
-                        {modelName}
-                      </option>
-                    ))
-                  ) : (
-                    <>
-                      <option value="gpt-4">GPT-4</option>
-                      <option value="gpt-4o">GPT-4o</option>
-                      <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                      <option value="claude-3-opus">Claude 3 Opus</option>
-                      <option value="claude-3-sonnet">Claude 3 Sonnet</option>
-                      <option value="deepseek-chat">DeepSeek Chat</option>
-                      <option value="moonshot-v1-8k">Moonshot v1 8k</option>
-                    </>
-                  )}
-                </select>
+                  {isCustomModel ? '从列表中选择' : '手动输入模型名称'}
+                </button>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {isCustomModel ? (
+                  <input
+                    type="text"
+                    value={model}
+                    onChange={(e) => setModelAndSave(e.target.value)}
+                    placeholder="输入模型名称，如 deepseek-v3 / gpt-4o"
+                    className="w-full sm:flex-1 min-w-0 max-w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 shadow-sm font-mono text-sm"
+                  />
+                ) : (
+                  <select
+                    value={model}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setIsCustomModel(true);
+                      } else {
+                        setModelAndSave(e.target.value);
+                      }
+                    }}
+                    className="w-full sm:flex-1 min-w-0 max-w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 bg-white shadow-sm"
+                  >
+                    {models.length > 0 ? (
+                      models.map((modelName) => (
+                        <option key={modelName} value={modelName}>
+                          {modelName}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="gpt-4o">GPT-4o</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        <option value="claude-3-opus">Claude 3 Opus</option>
+                        <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                        <option value="deepseek-chat">DeepSeek Chat</option>
+                        <option value="moonshot-v1-8k">Moonshot v1 8k</option>
+                      </>
+                    )}
+                    {!models.includes(model) && Boolean(model) && (
+                      <option value={model}>{model} (自定义)</option>
+                    )}
+                    <option value="__custom__">+ 手动输入模型名称...</option>
+                  </select>
+                )}
                 <button
                   onClick={fetchModels}
                   disabled={isFetchingModels || !apiKey}
@@ -362,7 +406,26 @@ export default function SettingsPage() {
                 </button>
               </div>
               <p className="mt-2 text-sm text-morandi-gray-500">
-                选择要使用的AI模型，点击"获取模型"从供应商拉取模型列表
+                选择要使用的AI模型，点击"获取模型"从供应商拉取模型列表；若无法自动获取，可直接手动填写模型名称。
+              </p>
+            </div>
+
+            <div className="pt-4 border-t border-morandi-gray-200">
+              <label className="block text-sm font-medium text-morandi-gray-700 mb-2 flex items-center gap-2">
+                <div className="p-1 bg-morandi-purple-100 rounded-md">
+                  <Key className="w-4 h-4 text-morandi-purple-600" />
+                </div>
+                Pollinations API Key (可选)
+              </label>
+              <input
+                type="password"
+                value={pollinationsApiKey}
+                onChange={(e) => setPollinationsApiKeyAndSave(e.target.value)}
+                placeholder="pk_... 或 sk_..."
+                className="w-full px-4 py-3 border border-morandi-gray-300 rounded-xl focus:ring-2 focus:ring-morandi-blue-500 focus:border-morandi-blue-500 shadow-sm font-mono text-sm"
+              />
+              <p className="mt-2 text-sm text-morandi-gray-500">
+                填写 Pollinations 官方 API Key（App Key `pk_` 或 Secret Key `sk_`）可解锁额度限制，享受更高并发与配额。留空将使用默认公共体验额度。
               </p>
             </div>
 

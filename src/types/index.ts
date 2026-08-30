@@ -116,6 +116,7 @@ export interface AIConfig {
   baseURL?: string;
   model?: string;
   models?: string[]; // 可用模型列表
+  pollinationsApiKey?: string; // Pollinations API Key (pk_ / sk_)
 }
 
 // 行动项

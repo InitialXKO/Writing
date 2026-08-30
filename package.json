@@ -1,7 +1,7 @@
 {
   "name": "writing-companion",
   "version": "1.0.0",
-  "description": "六年级作文成长手册 - 游戏化学习平台",
+  "description": "中小学作文成长手册 - 游戏化学习平台",
   "private": true,
   "scripts": {
     "dev": "next dev",

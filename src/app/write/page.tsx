@@ -604,6 +604,7 @@ const callPollinationsChatWithFallback = async (
   const secondaryModels = orderedModels.slice(1);
 
   const executeRequest = async (attempt: number): Promise<{ content: string; model: string }> => {
+    const pollinationsApiKey = useAppStore.getState().aiConfig?.pollinationsApiKey;
     const response = await fetch('/api/pollinations/chat', {
       method: 'POST',
       headers: {
@@ -616,6 +617,7 @@ const callPollinationsChatWithFallback = async (
         fallbackModels: secondaryModels,
         timeoutMs,
         jsonMode: false,
+        apiKey: pollinationsApiKey,
       }),
     });
 
@@ -719,6 +721,7 @@ function WriteContent() {
   // 使用 Pollinations Vision API 进行 OCR（降级方案）
   const recognizeWithPollinations = async (base64Image: string, signal: AbortSignal): Promise<string> => {
     console.log('→ 尝试使用 Pollinations Vision API 进行 OCR...');
+    const pollinationsApiKey = useAppStore.getState().aiConfig?.pollinationsApiKey;
     const response = await fetch('/api/pollinations/vision', {
       method: 'POST',
       headers: {
@@ -729,6 +732,7 @@ function WriteContent() {
         prompt: '请识别这张图片中的所有手写文字，直接输出识别的文字内容，不要添加任何解释或格式。',
         maxTokens: 800,
         timeoutMs: 45000,
+        apiKey: pollinationsApiKey,
       }),
       signal,
     });
@@ -939,7 +943,7 @@ function WriteContent() {
           
           if (currentContent) {
             // 稿纸有内容，让AI合并并去重
-            promptContent = `你是小学六年级作文指导老师。现在学生通过拍照手写作文继续写作。
+            promptContent = `你是中小学作文指导老师。现在学生通过拍照手写作文继续写作。
 
 稿纸已有内容：
 ${currentContent}
@@ -975,7 +979,7 @@ ${recognizedText}
           const messages: ChatMessage[] = [
             {
               role: 'system',
-              content: '你是一位小学六年级作文指导老师，擅长校正标点符号和OCR识别错误，同时严格保持学生原有的语气和表达方式。',
+              content: '你是一位中小学作文指导老师，擅长校正标点符号和OCR识别错误，同时严格保持学生原有的语气和表达方式。',
             },
             {
               role: 'user',
@@ -1092,7 +1096,7 @@ ${recognizedText}
           
           if (currentContent) {
             // 稿纸有内容，让AI合并并去重
-            promptContent = `你是小学六年级作文指导老师。现在学生通过语音继续写作文。
+            promptContent = `你是中小学作文指导老师。现在学生通过语音继续写作文。
 
 稿纸已有内容：
 ${currentContent}
@@ -1128,7 +1132,7 @@ ${normalizedTranscript}
           const messages: ChatMessage[] = [
             {
               role: 'system',
-              content: '你是一位小学六年级作文指导老师，擅长校正标点符号和语音识别错误，同时严格保持学生原有的语气和表达方式。',
+              content: '你是一位中小学作文指导老师，擅长校正标点符号和语音识别错误，同时严格保持学生原有的语气和表达方式。',
             },
             {
               role: 'user',
@@ -1216,7 +1220,7 @@ ${normalizedTranscript}
     const { latestLabel, latestContent } = prepareEssayHistoryData(essay);
     const simplifiedHistory = generateSimplifiedVersionHistory(essay);
 
-    const overallPrompt = `请作为小学六年级作文指导老师，基于自由写作的评价标准，对作文《${essay.title}》进行整体批改。请关注学生在不同版本中的进步，以及仍可提升的方向。
+    const overallPrompt = `请作为中小学作文指导老师，基于自由写作的评价标准，对作文《${essay.title}》进行整体批改。请关注学生在不同版本中的进步，以及仍可提升的方向。
 
 最新版本（${latestLabel}）：
 ${latestContent}
@@ -1234,7 +1238,7 @@ ${simplifiedHistory}
     const messages: ChatMessage[] = [
       {
         role: 'system',
-        content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。',
+        content: '你是一位中小学作文指导老师，熟悉《中小学作文成长手册》的内容和要求。',
       },
       {
         role: 'user',
@@ -1580,7 +1584,7 @@ ${simplifiedHistory}
       }
 
       // 构建AI批改提示词
-      let prompt = `你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。请根据以下内容对学生的作文进行批改：\n\n`;
+      let prompt = `你是一位中小学作文指导老师，熟悉《中小学作文成长手册》的内容和要求。请根据以下内容对学生的作文进行批改：\n\n`;
 
       // 添加批改上下文标识
       if (editingEssayId) {
@@ -1664,7 +1668,7 @@ ${simplifiedHistory}
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: '你是一位小学六年级作文指导老师，熟悉《六年级作文成长手册》的内容和要求。',
+          content: '你是一位中小学作文指导老师，熟悉《中小学作文成长手册》的内容和要求。',
         },
         {
           role: 'user',

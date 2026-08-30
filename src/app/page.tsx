@@ -182,7 +182,7 @@ export default function HomePage() {
           <Sparkles className="w-12 h-12 text-white" />
         </div>
         <h1 className="text-4xl md:text-5xl font-bold text-morandi-gray-800 mb-4 bg-gradient-to-r from-morandi-blue-600 to-morandi-green-600 bg-clip-text text-transparent">
-          六年级作文成长手册
+          中小学作文成长手册
         </h1>
         <p className="text-lg text-morandi-gray-600 max-w-2xl mx-auto">
           在规则内说真话 • 游戏化学习 • 七天掌握写作技巧
