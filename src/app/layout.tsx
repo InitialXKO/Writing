@@ -6,9 +6,9 @@ import { NotificationProvider } from '@/contexts/NotificationContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: '六年级作文成长手册',
+  title: '中小学作文成长手册',
   description: '游戏化作文学习平台 - 在规则内说真话',
-  keywords: ['作文', '六年级', '写作', '语文学习', '游戏化学习'],
+  keywords: ['作文', '中小学', '写作', '语文学习', '游戏化学习'],
 };
 
 export default function RootLayout({
